@@ -20,10 +20,12 @@ def generate_launch_description():
         [FindPackageShare("linorobot2_description"), "urdf/robots", f"{robot_base}.urdf.xacro"]
     )
     
-    #  Тут мы указываем наш мир по умолчанию, но его можно переопределить аргументом при запуске
-    default_world_path = PathJoinSubstitution(
-        [FindPackageShare("fcm_digital_twin"), "worlds", "kitchen.sdf"] 
-    )
+    # МАГИЯ ЗДЕСЬ: Мы динамически склеиваем путь к папке worlds и имя файла из аргумента
+    world_path = PathJoinSubstitution([
+        FindPackageShare("fcm_digital_twin"), 
+        "worlds", 
+        LaunchConfiguration('world_file')  # <- Берет значение из аргумента ниже
+    ])
 
     robot_description_content = Command([
         PathJoinSubstitution([FindExecutable(name="xacro")]), " ",
@@ -35,18 +37,18 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('gui', default_value='true'),
         
-        # Мир теперь задается как аргумент
-        DeclareLaunchArgument('world', default_value=default_world_path),
+        # ТЕПЕРЬ АРГУМЕНТ - ЭТО ТОЛЬКО ИМЯ ФАЙЛА
+        DeclareLaunchArgument('world_file', default_value='shelter.sdf', description='Name of the world file (e.g. empty.sdf)'),
         
         DeclareLaunchArgument('spawn_x', default_value='0.0'),
         DeclareLaunchArgument('spawn_y', default_value='0.0'),
         DeclareLaunchArgument('spawn_z', default_value='0.1'),
         DeclareLaunchArgument('spawn_yaw', default_value='0.0'),
         
-        # 1. Запуск Газебо (подхватит аргумент world)
+        # 1. Запуск Газебо (передаем наш склеенный world_path)
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(gazebo_launch_path),
-            launch_arguments={'gz_args': [' -r -s ', LaunchConfiguration('world')]}.items()
+            launch_arguments={'gz_args': [' -r -s ', world_path]}.items()
         ),
 
         # 2. GUI Газебо

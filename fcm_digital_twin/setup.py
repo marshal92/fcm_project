@@ -14,7 +14,6 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         
-        # === АВТОМАТИЧЕСКАЯ УСТАНОВКА ТВОИХ ФАЙЛОВ ===
         # Лаунчи
         (os.path.join('share', package_name, 'launch/simulation'), glob('launch/simulation/*.launch.py')),
         (os.path.join('share', package_name, 'launch/real'), glob('launch/real/*.launch.py')),
@@ -31,7 +30,8 @@ setup(
         (os.path.join('share', package_name, 'worlds'), glob('worlds/*')),
         (os.path.join('share', package_name, 'maps'), glob('maps/*')),
         (os.path.join('share', package_name, 'behavior_trees'), glob('behavior_trees/*.xml')),
-        
+        (os.path.join('share', package_name, 'meshes'), glob('meshes/*')),
+
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -46,6 +46,13 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'radiation_field_server = fcm_digital_twin.scripts.radiation_field_server:main',
+            'alara_speed_reflex = fcm_digital_twin.scripts.alara_speed_reflex:main',
+            'telemetry_logger = fcm_digital_twin.scripts.dose_logger:main',
+            'shadow_teleop = fcm_digital_twin.scripts.control.shadow_teleop:main',
+            'heartbeat_pub = fcm_digital_twin.scripts.heartbeat_pub:main',
+            'mission_manager = fcm_digital_twin.scripts.mission_manager:main',
+            'sdf_visualizer_node = fcm_digital_twin.scripts.vision.sdf_visualizer_node:main'
         ],
     },
 )

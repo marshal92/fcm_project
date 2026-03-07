@@ -1,0 +1,5 @@
+<library path="fcm_costmap_plugins_core">
+  <class type="fcm_costmap_plugins::RadiationLayer" base_class_type="nav2_costmap_2d::Layer">
+    <description>Custom Radiation Costmap Layer based on IDW and non-linear cost function.</description>
+  </class>
+</library>
