@@ -13,8 +13,11 @@ class MissionManager(Node):
         if not self.has_parameter('use_sim_time'):
             self.declare_parameter('use_sim_time', False)
         
-        self.use_sim_time = self.get_parameter('use_sim_time').get_parameter_value().bool_value
-        
+        # Получаем сырое значение и жестко парсим строку в boolean
+        param_val = self.get_parameter('use_sim_time').value
+        self.use_sim_time = str(param_val).lower() == 'true'
+
+       
         # Подписка на команды из Foxglove
         self.sub = self.create_subscription(String, '/system_command', self.command_cb, 10)
         
@@ -77,6 +80,37 @@ class MissionManager(Node):
             self.stop_mission()
             time.sleep(2) # Даем портам освободиться
             self.start_mission(map_name="shelter_map")
+
+        # === ДОБАВЛЯЕМ КОМАНДЫ РАДИАЦИИ ===
+        elif cmd == 'rad_on':
+            self.get_logger().info("☢️ Радиация ВКЛЮЧЕНА")
+            subprocess.Popen(['ros2', 'param', 'set', '/radiation_field_server', 'is_active', 'true'])
+        elif cmd == 'rad_off':
+            self.get_logger().info("🟢 Радиация ВЫКЛЮЧЕНА")
+            subprocess.Popen(['ros2', 'param', 'set', '/radiation_field_server', 'is_active', 'false'])
+        
+        # === ОЧИСТКА COSTMAPS ===
+        elif cmd == 'clear_costmaps':
+            self.get_logger().info("🧹 Очистка призрачных препятствий (Costmaps)...")
+            # Используем Popen, чтобы не блокировать менеджер, если сервис чуть задержится
+            subprocess.Popen(['ros2', 'service', 'call', '/local_costmap/clear_entirely_local_costmap', 'nav2_msgs/srv/ClearEntireCostmap'])
+            subprocess.Popen(['ros2', 'service', 'call', '/global_costmap/clear_entirely_global_costmap', 'nav2_msgs/srv/ClearEntireCostmap'])
+
+        # === ЗАПУСК FREERIDE ===
+        elif cmd == 'start_freeride':
+            if self.is_session_running():
+                self.get_logger().warn("Миссия УЖЕ запущена! Сначала остановите текущую.")
+                return
+            sim_time_str = "true" if self.use_sim_time else "false"
+            self.get_logger().info("🚀 Запуск миссии FREERIDE (Свободная езда с нуля)...")
+            launch_cmd = f"ros2 launch fcm_digital_twin mission_freeride.launch.py use_sim_time:={sim_time_str}"
+            subprocess.run(['tmux', 'new-session', '-d', '-s', self.session_name, launch_cmd])
+        
+        # === УПРАВЛЕНИЕ SLAM ===
+        elif cmd == 'toggle_slam':
+            self.get_logger().info("⏸️/▶️ Переключение паузы сканирования SLAM...")
+            subprocess.Popen(['ros2', 'service', 'call', '/slam_toolbox/pause_new_measurements', 'slam_toolbox/srv/Pause'])    
+
         else:
             self.get_logger().error(f"Неизвестная команда: {cmd}")
 

@@ -51,6 +51,6 @@ def generate_launch_description():
         simulation_launch,
         # Запускаем менеджер миссий сразу
         mission_manager_node,
-        # Мост Foxglove запускаем с задержкой, чтобы Газебо успело прогрузиться
+        # Запускаем мост с задержкой
         TimerAction(period=3.0, actions=[foxglove_bridge_node])
     ])

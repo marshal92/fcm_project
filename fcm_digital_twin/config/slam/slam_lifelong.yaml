@@ -17,7 +17,7 @@ slam_toolbox:
     mode: localization #localization
 
     map_file_name: /home/oleksandr/ros2_ws/src/fcm_project/fcm_digital_twin/maps/kitchen_posegraph
-    map_start_pose: [0.0, 0.0, 0.0]
+    # map_start_pose: [0.0, 0.0, 0.0]
     # if you'd like to immediately start continuing a map at a given pose
     # or at the dock, but they are mutually exclusive, if pose is given
     # will use pose

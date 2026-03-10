@@ -1,0 +1,13 @@
+explore_node:
+  ros__parameters:
+    robot_base_frame: base_footprint
+    costmap_topic: /global_costmap/costmap
+    costmap_updates_topic: /global_costmap/costmap_updates
+    visualize: true
+    planner_frequency: 0.33      # Как часто он пересчитывает цели (1 раз в 3 сек достаточно)
+    progress_timeout: 10.0       # (Было 30.0) Если за 10 сек не сдвинулся - забить на эту цель!
+    potential_scale: 5.0         # (Было 3.0) ВЕС ДИСТАНЦИИ. Чем выше, тем сильнее он хочет исследовать то, что БЛИЖЕ.
+    orientation_scale: 0.0       # Вес ориентации (оставляем 0)
+    gain_scale: 0.5              # (Было 1.0) ВЕС РАЗМЕРА. Уменьшаем, чтобы он не гнался за огромными пятнами на другом конце карты.
+    transform_tolerance: 0.3
+    min_frontier_size: 0.75      # (Было 0.5) Игнорировать мелкие дырки и шумы лидара (размер в метрах)

@@ -93,9 +93,9 @@ def generate_launch_description():
         use_sim_time_arg,
         
         simulation_launch,
-        TimerAction(period=4.0, actions=[slam_lifelong_launch]),
-        TimerAction(period=6.0, actions=[nav_lifelong_launch]),
-        TimerAction(period=7.0, actions=[radiation_server_node, alara_reflex_node]),
-        TimerAction(period=8.0, actions=[rviz_node]),
-        TimerAction(period=10.0, actions=[shadow_teleop_node])
+        TimerAction(period=14.0, actions=[slam_lifelong_launch]),
+        TimerAction(period=16.0, actions=[nav_lifelong_launch]),
+        TimerAction(period=17.0, actions=[radiation_server_node, alara_reflex_node]),
+        TimerAction(period=18.0, actions=[rviz_node]),
+        TimerAction(period=20.0, actions=[shadow_teleop_node])
     ])

@@ -31,6 +31,7 @@ class RadiationFieldServer(Node):
         map_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, map_qos)
         self.rad_pub = self.create_publisher(OccupancyGrid, '/radiation_map', map_qos)
+        self.declare_parameter('is_active', True)
         self.get_logger().info("Realistic Radiation Server with Splatters & Gaussians started!")
 
     def map_callback(self, map_msg):
@@ -75,14 +76,17 @@ class RadiationFieldServer(Node):
             dose = cloud['intensity'] * np.exp(-dist_sq / (2 * cloud['sigma']**2))
             total_dose += dose
 
-        # --- МАСШТАБИРОВАНИЕ ---
-        scaled_field = (total_dose / self.max_lethal_dose) * 100.0
+        is_active = self.get_parameter('is_active').get_parameter_value().bool_value
         
-        # Легчайший базовый фон здания (чтобы зоны вне пыли не были абсолютным нулем)
-        # Если RViz будет красить все в розовый, поставь здесь 0.0
-        scaled_field += 1.0 
-        
-        scaled_field = np.clip(np.round(scaled_field), 0, 100).astype(np.int8)
+        # --- ДОБАВЛЯЕМ ПРОВЕРКУ ПАРАМЕТРА ЗДЕСЬ ---
+        if is_active:
+            # РАДИАЦИЯ ВКЛЮЧЕНА - считаем как обычно
+            scaled_field = (total_dose / self.max_lethal_dose) * 100.0
+            scaled_field += 1.0 
+            scaled_field = np.clip(np.round(scaled_field), 0, 100).astype(np.int8)
+        else:
+            # РАДИАЦИЯ ВЫКЛЮЧЕНА - выдаем безопасный фон (1.0) по всей карте
+            scaled_field = np.ones((height, width), dtype=np.int8)
 
         # Маска SLAM
         slam_map = np.array(map_msg.data).reshape((height, width))
