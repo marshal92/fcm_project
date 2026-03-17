@@ -23,7 +23,7 @@ def generate_launch_description():
     # 2. СЕТЕВОЙ ОРКЕСТРАТОР (Слушает Foxglove, шлет команды на робота)
     twin_orchestrator_node = Node(
         package='fcm_digital_twin',
-        executable='twin_orchestrator_real',
+        executable='twin_orchestrator',
         name='twin_orchestrator',
         output='screen'
     )

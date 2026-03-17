@@ -120,14 +120,16 @@ class MissionManager(Node):
 
     # --- Вспомогательные команды ---
 
+    # ИСПРАВЛЕНИЕ: Заменил Popen на run, чтобы не плодить зомби-процессы
     def _set_param(self, node_name, param, value):
-        subprocess.Popen(
+        subprocess.run(
             ['ros2', 'param', 'set', node_name, param, value],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
 
+    # ИСПРАВЛЕНИЕ: Заменил Popen на run
     def _call_service(self, service, srv_type):
-        subprocess.Popen(
+        subprocess.run(
             ['ros2', 'service', 'call', service, srv_type],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
@@ -158,13 +160,13 @@ class MissionManager(Node):
             'stop':           lambda: threading.Thread(target=self._stop_mission, daemon=True).start(),
             'restart':        lambda: self._restart_mission(),
             'start_freeride': lambda: threading.Thread(target=self._start_freeride, daemon=True).start(),
-            'rad_on':         lambda: self._set_param('/radiation_field_server', 'is_active', 'true'),
-            'rad_off':        lambda: self._set_param('/radiation_field_server', 'is_active', 'false'),
+            'rad_on':         lambda: threading.Thread(target=self._set_param, args=('/radiation_field_server', 'is_active', 'true'), daemon=True).start(),
+            'rad_off':        lambda: threading.Thread(target=self._set_param, args=('/radiation_field_server', 'is_active', 'false'), daemon=True).start(),
             'clear_costmaps': lambda: [
-                self._call_service('/local_costmap/clear_entirely_local_costmap', 'nav2_msgs/srv/ClearEntireCostmap'),
-                self._call_service('/global_costmap/clear_entirely_global_costmap', 'nav2_msgs/srv/ClearEntireCostmap'),
+                threading.Thread(target=self._call_service, args=('/local_costmap/clear_entirely_local_costmap', 'nav2_msgs/srv/ClearEntireCostmap'), daemon=True).start(),
+                threading.Thread(target=self._call_service, args=('/global_costmap/clear_entirely_global_costmap', 'nav2_msgs/srv/ClearEntireCostmap'), daemon=True).start(),
             ],
-            'toggle_slam':    lambda: self._call_service('/slam_toolbox/pause_new_measurements', 'slam_toolbox/srv/Pause'),
+            'toggle_slam':    lambda: threading.Thread(target=self._call_service, args=('/slam_toolbox/pause_new_measurements', 'slam_toolbox/srv/Pause'), daemon=True).start(),
         }
 
         if cmd in dispatch:
@@ -178,7 +180,7 @@ def main(args=None):
     rclpy.init(args=args)
     node = MissionManager()
     try:
-        rclpy.spin(node)  # SingleThreaded — нет постоянных таймеров, executor почти не работает
+        rclpy.spin(node)
     except KeyboardInterrupt:
         node.get_logger().info("Shutdown...")
         node._stop_mission()

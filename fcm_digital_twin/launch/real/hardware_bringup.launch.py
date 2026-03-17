@@ -27,7 +27,15 @@ def generate_launch_description():
         output='screen'
     )
 
-    # 3. УПРАВЛЕНИЕ МИССИЯМИ (Бортовой менеджер)
+    # 3. МОСТ FOXGLOVE (Теперь живет на самом роботе!)
+    foxglove_node = Node(
+        package='foxglove_bridge',
+        executable='foxglove_bridge',
+        parameters=[{'port': 8765, 'send_buffer_limit': 100000000, 'use_sim_time': False}],
+        output='screen'
+    )
+
+    # 4. УПРАВЛЕНИЕ МИССИЯМИ (Бортовой менеджер)
     mission_manager_node = Node(
         package='fcm_digital_twin',
         executable='mission_manager',
@@ -39,5 +47,6 @@ def generate_launch_description():
         linorobot_bringup,
         sllidar_launch,
         camera_launch,
+        foxglove_node,
         mission_manager_node
     ])

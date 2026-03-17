@@ -29,7 +29,7 @@ class RadiationFieldServer(Node):
         map_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, map_qos)
         self.rad_pub = self.create_publisher(OccupancyGrid, '/radiation_map', map_qos)
-        self.declare_parameter('is_active', True)
+        self.declare_parameter('is_active', False)
         
         # --- НОВОЕ: Переменные для кэширования тяжелой математики ---
         self.cached_width = 0
