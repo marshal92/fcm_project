@@ -9,7 +9,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     fcm_pkg = FindPackageShare('fcm_digital_twin')
 
-    # 1. Глобальный аргумент: имя файла мира (как его ждет mapping.launch.py)
+    # 1. Глобальный аргумент: имя файла мира
     world_file_arg = DeclareLaunchArgument(
         'world_file', 
         default_value='kitchen.sdf',
@@ -18,7 +18,7 @@ def generate_launch_description():
 
     use_sim_time = 'true' # Для мастера маппинга это всегда симуляция
 
-    # 2. Вызов Газебо + God Mode
+    # 2. Вызов Газебо
     sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([fcm_pkg, 'launch', 'simulation', 'mapping.launch.py'])
@@ -34,7 +34,7 @@ def generate_launch_description():
         launch_arguments={'use_sim_time': use_sim_time}.items()
     )
 
-    # 4. Вызов Nav2 (Нужен для объезда препятствий и работы explore_lite)
+    # 4. Вызов Nav2 
     nav_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([fcm_pkg, 'launch', 'core', 'nav_lifelong.launch.py'])
@@ -42,7 +42,7 @@ def generate_launch_description():
         launch_arguments={'use_sim_time': use_sim_time}.items()
     )
 
-    # 5. Пульс (Heartbeat) - чтобы Nav2 не паниковал и не триггерил дерево выживания
+    # 5. Пульс (Heartbeat)
     heartbeat_node = Node(
         package='fcm_digital_twin',
         executable='heartbeat_pub',
@@ -50,7 +50,24 @@ def generate_launch_description():
         output='screen'
     )
 
-    # 6. Вызов RViz с твоим сохраненным конфигом
+    # 6. УПРАВЛЕНИЕ С ГЕЙМПАДА 
+    teleop_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([FindPackageShare('teleop_twist_joy'), 'launch', 'teleop-launch.py'])
+        ),
+        launch_arguments={'joy_config': 'xbox'}.items() 
+    )
+
+    # 7. SDF VISUALIZER (Добавили парсер стен)
+    sdf_visualizer_node = Node(
+        package='fcm_digital_twin',
+        executable='sdf_visualizer_node',
+        name='sdf_visualizer_node',
+        output='screen',
+        parameters=[{'world_file': LaunchConfiguration('world_file')}]
+    )
+
+    # 8. Вызов RViz 
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
@@ -66,5 +83,7 @@ def generate_launch_description():
         slam_launch,
         nav_launch,
         heartbeat_node,
+        teleop_launch,
+        sdf_visualizer_node,
         rviz_node
     ])

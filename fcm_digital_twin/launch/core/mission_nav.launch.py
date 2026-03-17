@@ -44,16 +44,16 @@ def generate_launch_description():
         package='fcm_digital_twin',
         executable='radiation_field_server',
         name='radiation_field_server',
-        output='screen',
-        parameters=[{'use_sim_time': use_sim_time}]
+        output='screen'#,
+    #    parameters=[{'use_sim_time': use_sim_time}]
     )
 
     alara_reflex_node = Node(
         package='fcm_digital_twin',
         executable='alara_speed_reflex',
         name='alara_speed_reflex',
-        output='screen',
-        parameters=[{'use_sim_time': use_sim_time}]
+        output='screen'#,
+        #parameters=[{'use_sim_time': use_sim_time}]
     )
 
     return LaunchDescription([

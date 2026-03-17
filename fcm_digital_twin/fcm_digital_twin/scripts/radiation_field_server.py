@@ -13,7 +13,6 @@ class RadiationFieldServer(Node):
         self.max_lethal_dose = 15000.0 
 
         # 1. ЖЕСТКИЕ ИСТОЧНИКИ (Куски ТСМ)
-        # size - физический диаметр куска (в метрах), создает "плато" максимальной дозы
         self.hard_splatters = [
             {'x': 1.5,  'y': 2.0,  'intensity': 50000.0, 'size': 0.3},
             {'x': -3.0, 'y': 0.0,  'intensity': 80000.0, 'size': 0.5},
@@ -21,10 +20,9 @@ class RadiationFieldServer(Node):
         ]
 
         # 2. МЯГКИЕ ИСТОЧНИКИ (Радиоактивная пыль / Аэрозоли)
-        # sigma - размытость облака. Они будут складываться друг с другом!
         self.soft_clouds = [
             {'x': 0.0, 'y': 5.0, 'intensity': 3000.0, 'sigma': 2.0}, 
-            {'x': 1.0, 'y': 4.0, 'intensity': 2500.0, 'sigma': 1.5}, # Пересекается с первым!
+            {'x': 1.0, 'y': 4.0, 'intensity': 2500.0, 'sigma': 1.5},
             {'x': 4.0, 'y': 1.0, 'intensity': 1500.0, 'sigma': 1.5}  
         ]
 
@@ -32,7 +30,13 @@ class RadiationFieldServer(Node):
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, map_qos)
         self.rad_pub = self.create_publisher(OccupancyGrid, '/radiation_map', map_qos)
         self.declare_parameter('is_active', True)
-        self.get_logger().info("Realistic Radiation Server with Splatters & Gaussians started!")
+        
+        # --- НОВОЕ: Переменные для кэширования тяжелой математики ---
+        self.cached_width = 0
+        self.cached_height = 0
+        self.cached_total_dose = None
+        
+        self.get_logger().info("Optimized Radiation Server with Caching started!")
 
     def map_callback(self, map_msg):
         width = map_msg.info.width
@@ -41,54 +45,51 @@ class RadiationFieldServer(Node):
         ox = map_msg.info.origin.position.x
         oy = map_msg.info.origin.position.y
 
-        x = np.linspace(0, width - 1, width) * res + ox
-        y = np.linspace(0, height - 1, height) * res + oy
-        xv, yv = np.meshgrid(x, y)
-
-        total_dose = np.zeros((height, width), dtype=np.float32)
-
-        # --- СЧИТАЕМ ЖЕСТКИЕ ПЯТНА (Кляксы с плато) ---
-        for src in self.hard_splatters:
-            dx = xv - src['x']
-            dy = yv - src['y']
-            dist = np.sqrt(dx**2 + dy**2)
+        # --- КЭШИРОВАНИЕ: Считаем физику ТОЛЬКО если размер карты изменился ---
+        if width != self.cached_width or height != self.cached_height:
+            self.get_logger().info(f"Map size changed to {width}x{height}. Recalculating radiation field...")
             
-            # Процедурная деформация круга в неровную "кляксу"
-            angle = np.arctan2(dy, dx)
-            # Фаза зависит от координат, чтобы все кляксы были разной формы
-            phase = src['x'] * 10.0 
-            noise = 1.0 + 0.3 * np.sin(3 * angle + phase) + 0.15 * np.cos(5 * angle - phase)
-            
-            # Искаженное расстояние
-            dist_irregular = dist * noise
-            
-            # Радиус плато (физический размер куска)
-            core_r = src['size'] / 2.0
-            
-            # Формула с плато: I / (r^2 + core_r^2) * exp(-mu * r)
-            dose = (src['intensity'] / (dist_irregular**2 + core_r**2)) * np.exp(-self.mu_air * dist_irregular)
-            total_dose += dose
+            x = np.linspace(0, width - 1, width) * res + ox
+            y = np.linspace(0, height - 1, height) * res + oy
+            xv, yv = np.meshgrid(x, y)
 
-        # --- СЧИТАЕМ МЯГКИЕ ОБЛАКА (Гауссианы) ---
-        for cloud in self.soft_clouds:
-            dist_sq = (xv - cloud['x'])**2 + (yv - cloud['y'])**2
-            # Гауссово распределение (красиво и физично складывается при пересечении)
-            dose = cloud['intensity'] * np.exp(-dist_sq / (2 * cloud['sigma']**2))
-            total_dose += dose
+            total_dose = np.zeros((height, width), dtype=np.float32)
 
+            # Считаем жесткие пятна
+            for src in self.hard_splatters:
+                dx = xv - src['x']
+                dy = yv - src['y']
+                dist = np.sqrt(dx**2 + dy**2)
+                angle = np.arctan2(dy, dx)
+                phase = src['x'] * 10.0 
+                noise = 1.0 + 0.3 * np.sin(3 * angle + phase) + 0.15 * np.cos(5 * angle - phase)
+                dist_irregular = dist * noise
+                core_r = src['size'] / 2.0
+                dose = (src['intensity'] / (dist_irregular**2 + core_r**2)) * np.exp(-self.mu_air * dist_irregular)
+                total_dose += dose
+
+            # Считаем гауссианы
+            for cloud in self.soft_clouds:
+                dist_sq = (xv - cloud['x'])**2 + (yv - cloud['y'])**2
+                dose = cloud['intensity'] * np.exp(-dist_sq / (2 * cloud['sigma']**2))
+                total_dose += dose
+
+            # Сохраняем в кэш
+            self.cached_total_dose = total_dose
+            self.cached_width = width
+            self.cached_height = height
+
+        # --- БЫСТРЫЙ ПУТЬ (Выполняется мгновенно при каждом обновлении SLAM) ---
         is_active = self.get_parameter('is_active').get_parameter_value().bool_value
         
-        # --- ДОБАВЛЯЕМ ПРОВЕРКУ ПАРАМЕТРА ЗДЕСЬ ---
         if is_active:
-            # РАДИАЦИЯ ВКЛЮЧЕНА - считаем как обычно
-            scaled_field = (total_dose / self.max_lethal_dose) * 100.0
+            scaled_field = (self.cached_total_dose / self.max_lethal_dose) * 100.0
             scaled_field += 1.0 
             scaled_field = np.clip(np.round(scaled_field), 0, 100).astype(np.int8)
         else:
-            # РАДИАЦИЯ ВЫКЛЮЧЕНА - выдаем безопасный фон (1.0) по всей карте
             scaled_field = np.ones((height, width), dtype=np.int8)
 
-        # Маска SLAM
+        # Накладываем маску SLAM (стены и неизвестные зоны)
         slam_map = np.array(map_msg.data).reshape((height, width))
         scaled_field[slam_map == -1] = -1
 

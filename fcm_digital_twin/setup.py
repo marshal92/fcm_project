@@ -49,10 +49,13 @@ setup(
             'radiation_field_server = fcm_digital_twin.scripts.radiation_field_server:main',
             'alara_speed_reflex = fcm_digital_twin.scripts.alara_speed_reflex:main',
             'telemetry_logger = fcm_digital_twin.scripts.dose_logger:main',
-            'shadow_teleop = fcm_digital_twin.scripts.control.shadow_teleop:main',
+            'shadow_teleop_sim = fcm_digital_twin.scripts.control.shadow_teleop_sim:main',
+            'shadow_teleop_real = fcm_digital_twin.scripts.control.shadow_teleop_real:main',
             'heartbeat_pub = fcm_digital_twin.scripts.heartbeat_pub:main',
             'mission_manager = fcm_digital_twin.scripts.mission_manager:main',
-            'sdf_visualizer_node = fcm_digital_twin.scripts.vision.sdf_visualizer_node:main'
+            'stabilized_frame_publisher = fcm_digital_twin.scripts.stabilized_frame_publisher:main',       
+            'sdf_visualizer_node = fcm_digital_twin.scripts.vision.sdf_visualizer_node:main',
+            'twin_orchestrator = fcm_digital_twin.scripts.control.twin_orchestrator:main'
         ],
     },
 )
