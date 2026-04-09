@@ -14,18 +14,19 @@ class SdfVisualizerNode(Node):
         qos_profile = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.publisher = self.create_publisher(MarkerArray, '/digital_twin/environment_3d', qos_profile)
         
-        # --- ИЗБАВЛЯЕМСЯ ОТ АБСОЛЮТНОГО ПУТИ ---
-        # 1. Читаем параметр (по умолчанию shelter.sdf)
+        # 1. Параметры файла
         self.declare_parameter('world_file', 'shelter.sdf')
+        
+        # 2. ПАРАМЕТРЫ СМЕЩЕНИЯ (Для калибровки SLAM map и 3D модели)
+        # Если робот стартует на фундаменте (Z=0.5), то z_offset должен быть примерно -0.5
+        self.declare_parameter('x_offset', 0.0)
+        self.declare_parameter('y_offset', 0.0)
+        self.declare_parameter('z_offset', 0.0)
+
         world_filename = self.get_parameter('world_file').get_parameter_value().string_value
-        
-        # 2. Находим системную папку пакета после сборки
         pkg_share_dir = get_package_share_directory('fcm_digital_twin')
-        
-        # 3. Склеиваем безопасный путь
         self.sdf_file_path = os.path.join(pkg_share_dir, 'worlds', world_filename)
         
-        # Публикуем каждые 2 секунды. Теперь галочка в RViz/Foxglove работает безотказно!
         self.timer = self.create_timer(2.0, self.publish_world)
         self.get_logger().info(f'SDF Smart Parser Started. Target world: {self.sdf_file_path}')
 
@@ -41,6 +42,10 @@ class SdfVisualizerNode(Node):
             self.get_logger().error(f'SDF file not found: {self.sdf_file_path}')
             return
 
+        x_off = self.get_parameter('x_offset').value
+        y_off = self.get_parameter('y_offset').value
+        z_off = self.get_parameter('z_offset').value
+
         marker_array = MarkerArray()
         tree = ET.parse(self.sdf_file_path)
         root = tree.getroot()
@@ -52,69 +57,81 @@ class SdfVisualizerNode(Node):
             if model_name == 'ground_plane':
                 continue
 
+            # Читаем позу модели
             model_pose_tag = model.find('pose')
-            model_pose = model_pose_tag.text if model_pose_tag is not None else "0 0 0 0 0 0"
-            pose_vals = [float(v) for v in model_pose.split()]
+            m_pose = [float(v) for v in (model_pose_tag.text if model_pose_tag is not None else "0 0 0 0 0 0").split()]
             
-            for visual in model.findall('.//visual'):
-                mesh = visual.find('.//mesh')
-                if mesh is None:
-                    continue
+            for link in model.findall('.//link'):
+                # Читаем позу линка
+                link_pose_tag = link.find('pose')
+                l_pose = [float(v) for v in (link_pose_tag.text if link_pose_tag is not None else "0 0 0 0 0 0").split()]
+
+                for visual in link.findall('.//visual'):
+                    visual_name = visual.attrib.get('name', f'visual_{marker_id}')
                     
-                uri_tag = mesh.find('uri')
-                if uri_tag is None:
-                    continue
-                
-                mesh_uri = uri_tag.text
-                
-                # Газебо использует model://, а Foxglove и RViz понимают package://
-                if mesh_uri.startswith('model://'):
-                    mesh_uri = mesh_uri.replace('model://', 'package://')
+                    # Читаем позу визуала
+                    v_pose_tag = visual.find('pose')
+                    v_pose = [float(v) for v in (v_pose_tag.text if v_pose_tag is not None else "0 0 0 0 0 0").split()]
 
-                marker = Marker()
-                marker.header.frame_id = "map"
-                marker.header.stamp = self.get_clock().now().to_msg()
-                
-                marker.ns = model_name 
-                marker.id = marker_id
-                marker.type = Marker.MESH_RESOURCE
-                marker.action = Marker.ADD
-                marker.mesh_resource = mesh_uri
-                
-                if mesh_uri.lower().endswith('.dae'):
-                    marker.mesh_use_embedded_materials = True
-                else:
-                    marker.mesh_use_embedded_materials = False
-                
-                marker.pose.position.x = pose_vals[0]
-                marker.pose.position.y = pose_vals[1]
-                marker.pose.position.z = pose_vals[2] + 0.01 
-                
-                q = self.euler_to_quaternion(pose_vals[3], pose_vals[4], pose_vals[5])
-                marker.pose.orientation.x = q[0]
-                marker.pose.orientation.y = q[1]
-                marker.pose.orientation.z = q[2]
-                marker.pose.orientation.w = q[3]
-                
-                scale_tag = mesh.find('scale')
-                if scale_tag is not None:
-                    scale_vals = [float(v) for v in scale_tag.text.split()]
-                    marker.scale.x = scale_vals[0]
-                    marker.scale.y = scale_vals[1]
-                    marker.scale.z = scale_vals[2]
-                else:
-                    marker.scale.x = 1.0
-                    marker.scale.y = 1.0
-                    marker.scale.z = 1.0
+                    marker = Marker()
+                    marker.header.frame_id = "map"
+                    marker.header.stamp = self.get_clock().now().to_msg()
+                    
+                    # ИСПРАВЛЕНИЕ 1: Уникальный неймспейс для каждой детали (чтобы были отдельные чекбоксы)
+                    marker.ns = f"{model_name}/{visual_name}"
+                    marker.id = marker_id
+                    marker.action = Marker.ADD
 
-                # ИСПРАВЛЕНИЕ: Абсолютно непрозрачный цвет
-                marker.color.r = 0.50
-                marker.color.g = 0.50
-                marker.color.b = 0.50
-                marker.color.a = 1.0
+                    mesh = visual.find('.//mesh')
+                    box = visual.find('.//box')
 
-                marker_array.markers.append(marker)
-                marker_id += 1
+                    # ИСПРАВЛЕНИЕ 2: Обработка как Mesh, так и Box (Фундамента)
+                    if mesh is not None:
+                        uri_tag = mesh.find('uri')
+                        if uri_tag is None: continue
+                        
+                        marker.type = Marker.MESH_RESOURCE
+                        mesh_uri = uri_tag.text.replace('model://', 'package://')
+                        marker.mesh_resource = mesh_uri
+                        marker.mesh_use_embedded_materials = mesh_uri.lower().endswith('.dae')
+                        
+                        scale_tag = mesh.find('scale')
+                        if scale_tag is not None:
+                            sx, sy, sz = [float(v) for v in scale_tag.text.split()]
+                            marker.scale.x = sx; marker.scale.y = sy; marker.scale.z = sz
+                        else:
+                            marker.scale.x = 1.0; marker.scale.y = 1.0; marker.scale.z = 1.0
+
+                    elif box is not None:
+                        marker.type = Marker.CUBE
+                        size_tag = box.find('size')
+                        if size_tag is not None:
+                            sx, sy, sz = [float(v) for v in size_tag.text.split()]
+                            marker.scale.x = sx; marker.scale.y = sy; marker.scale.z = sz
+                        else:
+                            marker.scale.x = 1.0; marker.scale.y = 1.0; marker.scale.z = 1.0
+                    else:
+                        continue # Пропускаем, если не меш и не куб
+
+                    # ИСПРАВЛЕНИЕ 3: Расчет финальной позиции с учетом ручных оффсетов
+                    marker.pose.position.x = m_pose[0] + l_pose[0] + v_pose[0] + x_off
+                    marker.pose.position.y = m_pose[1] + l_pose[1] + v_pose[1] + y_off
+                    marker.pose.position.z = m_pose[2] + l_pose[2] + v_pose[2] + z_off
+                    
+                    q = self.euler_to_quaternion(m_pose[3], m_pose[4], m_pose[5])
+                    marker.pose.orientation.x = q[0]
+                    marker.pose.orientation.y = q[1]
+                    marker.pose.orientation.z = q[2]
+                    marker.pose.orientation.w = q[3]
+
+                    # Цвет
+                    marker.color.r = 0.50
+                    marker.color.g = 0.50
+                    marker.color.b = 0.50
+                    marker.color.a = 1.0
+
+                    marker_array.markers.append(marker)
+                    marker_id += 1
 
         if marker_id > 0:
             self.publisher.publish(marker_array)

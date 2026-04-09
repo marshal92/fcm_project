@@ -12,18 +12,21 @@ class RadiationFieldServer(Node):
         self.mu_air = 0.9  
         self.max_lethal_dose = 15000.0 
 
-        # 1. ЖЕСТКИЕ ИСТОЧНИКИ (Куски ТСМ)
         self.hard_splatters = [
-            {'x': 1.5,  'y': 2.0,  'intensity': 50000.0, 'size': 0.3},
-            {'x': -3.0, 'y': 0.0,  'intensity': 80000.0, 'size': 0.5},
-            {'x': 6.5,  'y': 7.5,  'intensity': 40000.0, 'size': 0.25}
+            {'x': 10.6,  'y': 9.0,  'intensity': 85000.0, 'size': 1.45},
+            {'x': 1.5, 'y': 1.5,  'intensity': 50000.0, 'size': 0.7},
+            {'x': 7.9,  'y': 16.5,  'intensity': 65000.0, 'size': 1.0},
+            {'x': 11.5,  'y': 14.5,  'intensity': 45000.0, 'size': 0.9},
+            {'x': 5.0,  'y': 9.3,  'intensity': 50000.0, 'size': 0.75}
         ]
 
-        # 2. МЯГКИЕ ИСТОЧНИКИ (Радиоактивная пыль / Аэрозоли)
         self.soft_clouds = [
-            {'x': 0.0, 'y': 5.0, 'intensity': 3000.0, 'sigma': 2.0}, 
-            {'x': 1.0, 'y': 4.0, 'intensity': 2500.0, 'sigma': 1.5},
-            {'x': 4.0, 'y': 1.0, 'intensity': 1500.0, 'sigma': 1.5}  
+            {'x': -1.0,  'y': 6.0,  'intensity': 4000.0, 'sigma': 1.8},
+            {'x': 3.0, 'y': 0.0, 'intensity': 3000.0, 'sigma': 2.0}, 
+            {'x': 8.0, 'y': 8.0, 'intensity': 2500.0, 'sigma': 1.5},
+            {'x': 5.0, 'y': 20.0, 'intensity': 1500.0, 'sigma': 1.5},
+            {'x': 14.0,  'y': 19.0,  'intensity': 4000.0, 'sigma': 1.8},
+            {'x': 12.0, 'y': 0.0, 'intensity': 3000.0, 'sigma': 2.0} 
         ]
 
         map_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
@@ -31,21 +34,26 @@ class RadiationFieldServer(Node):
         self.rad_pub = self.create_publisher(OccupancyGrid, '/radiation_map', map_qos)
         self.declare_parameter('is_active', False)
         
-        # --- НОВОЕ: Переменные для кэширования тяжелой математики ---
         self.cached_width = 0
         self.cached_height = 0
         self.cached_total_dose = None
         
-        self.get_logger().info("Optimized Radiation Server with Caching started!")
+        # --- OPTIMIZATION: Publication Management  ---
+        self.last_map_msg = None
+        self.last_published_state = None 
+        self.need_publish = False
+        self.pub_timer = self.create_timer(0.5, self.publish_loop)
+
+        self.get_logger().info("Super-Optimized Radiation Server started!")
 
     def map_callback(self, map_msg):
+        self.last_map_msg = map_msg
         width = map_msg.info.width
         height = map_msg.info.height
         res = map_msg.info.resolution
         ox = map_msg.info.origin.position.x
         oy = map_msg.info.origin.position.y
 
-        # --- КЭШИРОВАНИЕ: Считаем физику ТОЛЬКО если размер карты изменился ---
         if width != self.cached_width or height != self.cached_height:
             self.get_logger().info(f"Map size changed to {width}x{height}. Recalculating radiation field...")
             
@@ -55,49 +63,66 @@ class RadiationFieldServer(Node):
 
             total_dose = np.zeros((height, width), dtype=np.float32)
 
-            # Считаем жесткие пятна
             for src in self.hard_splatters:
                 dx = xv - src['x']
                 dy = yv - src['y']
                 dist = np.sqrt(dx**2 + dy**2)
                 angle = np.arctan2(dy, dx)
-                phase = src['x'] * 10.0 
-                noise = 1.0 + 0.3 * np.sin(3 * angle + phase) + 0.15 * np.cos(5 * angle - phase)
-                dist_irregular = dist * noise
-                core_r = src['size'] / 2.0
-                dose = (src['intensity'] / (dist_irregular**2 + core_r**2)) * np.exp(-self.mu_air * dist_irregular)
+                
+                f1 = 2.0 + (src['x'] % 5.0)  
+                f2 = 2.0 + (src['y'] % 5.0)
+                a1 = 0.1 + (src['y'] % 0.2)  
+                a2 = 0.05 + (src['x'] % 0.15)
+                
+                noise = 1.0 + a1 * np.sin(f1 * angle + src['x']) + a2 * np.cos(f2 * angle + src['y'])
+                r_effective = dist * noise
+                r_core = src['size']
+                
+                dose = (src['intensity'] / ((r_effective / r_core)**2 + 1.0)) * np.exp(-self.mu_air * r_effective)
                 total_dose += dose
-
-            # Считаем гауссианы
+            
             for cloud in self.soft_clouds:
                 dist_sq = (xv - cloud['x'])**2 + (yv - cloud['y'])**2
                 dose = cloud['intensity'] * np.exp(-dist_sq / (2 * cloud['sigma']**2))
                 total_dose += dose
 
-            # Сохраняем в кэш
             self.cached_total_dose = total_dose
             self.cached_width = width
             self.cached_height = height
+            self.need_publish = True 
 
-        # --- БЫСТРЫЙ ПУТЬ (Выполняется мгновенно при каждом обновлении SLAM) ---
+    def publish_loop(self):
+        if self.last_map_msg is None or self.cached_total_dose is None:
+            return
+
         is_active = self.get_parameter('is_active').get_parameter_value().bool_value
         
-        if is_active:
-            scaled_field = (self.cached_total_dose / self.max_lethal_dose) * 100.0
-            scaled_field += 1.0 
-            scaled_field = np.clip(np.round(scaled_field), 0, 100).astype(np.int8)
-        else:
-            scaled_field = np.ones((height, width), dtype=np.int8)
+        # Publish only if the radiation status (ON/OFF) has changed or the map size has been updated
+        if is_active != self.last_published_state or self.need_publish:
+            
+            width = self.cached_width
+            height = self.cached_height
+            
+            if is_active:
+                scaled_field = (self.cached_total_dose / self.max_lethal_dose) * 100.0
+                scaled_field += 1.0 
+                scaled_field = np.clip(np.round(scaled_field), 0, 100).astype(np.int8)
+            else:
+                scaled_field = np.ones((height, width), dtype=np.int8)
 
-        # Накладываем маску SLAM (стены и неизвестные зоны)
-        slam_map = np.array(map_msg.data).reshape((height, width))
-        scaled_field[slam_map == -1] = -1
+            slam_map = np.array(self.last_map_msg.data).reshape((height, width))
+            scaled_field[slam_map == -1] = -1
 
-        rad_msg = OccupancyGrid()
-        rad_msg.header = map_msg.header
-        rad_msg.info = map_msg.info
-        rad_msg.data = scaled_field.flatten().tolist()
-        self.rad_pub.publish(rad_msg)
+            rad_msg = OccupancyGrid()
+            rad_msg.header = self.last_map_msg.header
+            rad_msg.info = self.last_map_msg.info
+            rad_msg.data = scaled_field.flatten().tolist()
+            
+            self.rad_pub.publish(rad_msg)
+            
+            self.last_published_state = is_active
+            self.need_publish = False
+            self.get_logger().info(f"Radiation map updated and published. State: {'ON' if is_active else 'OFF'}")
 
 def main(args=None):
     rclpy.init(args=args)

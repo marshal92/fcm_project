@@ -14,19 +14,19 @@ def generate_launch_description():
     )
     use_sim_time = LaunchConfiguration('use_sim_time')
 
-    # 1. SLAM в режиме чистого МАППИНГА с нуля
+    # 1. SLAM in mapping mode
     slam_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([fcm_pkg, 'launch', 'core', 'slam_mapping.launch.py'])),
         launch_arguments={'use_sim_time': use_sim_time}.items()
     )
 
-    # 2. НАВИГАЦИЯ (абсолютно та же самая, она умеет работать с растущей картой)
+    # 2. NAVIGATION (absolutely the same, it can work with the growing map)
     nav_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([fcm_pkg, 'launch', 'core', 'nav_lifelong.launch.py'])),
         launch_arguments={'use_sim_time': use_sim_time}.items()
     )
     
-    # 3. УЗЛЫ РАДИАЦИИ (Оставляем их, чтобы можно было генерировать угрозы в новых комнатах)
+    # 3. Radiation Nodes (Keeping them to generate threats in new rooms)
     radiation_server_node = Node(
         package='fcm_digital_twin',
         executable='radiation_field_server',
@@ -49,7 +49,7 @@ def generate_launch_description():
     return LaunchDescription([
         use_sim_time_arg,
         slam_launch,
-        # Даем SLAMу 2 секунды на создание первой пустой карты (0,0,0), затем пускаем водителя
+
         TimerAction(period=2.0, actions=[nav_launch]),
         radiation_server_node,
         alara_reflex_node

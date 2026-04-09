@@ -6,15 +6,15 @@ from std_msgs.msg import Empty
 class HeartbeatPublisher(Node):
     def __init__(self):
         super().__init__('operator_heartbeat_node')
-        # Создаем паблишер в топик /operator_heartbeat
+        # Create a publisher in the topic /operator_heartbeat
         self.pub = self.create_publisher(Empty, '/operator_heartbeat', 10)
         
-        # Таймер срабатывает 2 раза в секунду (0.5 сек)
+        # The timer runs twice per second (0.5 sec)
         self.timer = self.create_timer(0.5, self.timer_callback)
-        self.get_logger().info('Генератор пульса запущен. Передаю связь...')
+        self.get_logger().info('Pulse Generator started. Transmitting connection...')
 
     def timer_callback(self):
-        # Просто кидаем пустое сообщение
+        # Just publish an empty message
         self.pub.publish(Empty())
 
 def main(args=None):

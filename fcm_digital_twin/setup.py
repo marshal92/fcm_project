@@ -14,23 +14,25 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         
-        # Лаунчи
+        # Launch files
         (os.path.join('share', package_name, 'launch/simulation'), glob('launch/simulation/*.launch.py')),
         (os.path.join('share', package_name, 'launch/real'), glob('launch/real/*.launch.py')),
         (os.path.join('share', package_name, 'launch/core'), glob('launch/core/*.launch.py')),
         
-        # Конфиги
+        # Config files
         (os.path.join('share', package_name, 'config/nav2'), glob('config/nav2/*.yaml')),
         (os.path.join('share', package_name, 'config/slam'), glob('config/slam/*.yaml')),
         (os.path.join('share', package_name, 'config/ekf'), glob('config/ekf/*.yaml')),
         (os.path.join('share', package_name, 'config/foxglove'), glob('config/foxglove/*.json')),
         (os.path.join('share', package_name, 'config/rviz'), glob('config/rviz/*.rviz')),
         
-        # Среда (Миры и Карты)
-        (os.path.join('share', package_name, 'worlds'), glob('worlds/*')),
+        # Worlds (Maps and Worlds)
+        (os.path.join('share', package_name, 'worlds'), glob('worlds/*.sdf') + glob('worlds/*.STL')),
+        
         (os.path.join('share', package_name, 'maps'), glob('maps/*')),
         (os.path.join('share', package_name, 'behavior_trees'), glob('behavior_trees/*.xml')),
         (os.path.join('share', package_name, 'meshes'), glob('meshes/*')),
+        (os.path.join('share', package_name, 'worlds/Gazebo_Meshes'), glob('worlds/Gazebo_Meshes/*.stl')),
 
     ],
     install_requires=['setuptools'],
@@ -51,11 +53,16 @@ setup(
             'telemetry_logger = fcm_digital_twin.scripts.dose_logger:main',
             'shadow_teleop_sim = fcm_digital_twin.scripts.control.shadow_teleop_sim:main',
             'shadow_teleop_real = fcm_digital_twin.scripts.control.shadow_teleop_real:main',
+            'resource_logger = fcm_digital_twin.scripts.control.resource_logger:main',
+            'obstacle_manager = fcm_digital_twin.scripts.control.obstacle_manager:main',
             'heartbeat_pub = fcm_digital_twin.scripts.heartbeat_pub:main',
             'mission_manager = fcm_digital_twin.scripts.mission_manager:main',
             'stabilized_frame_publisher = fcm_digital_twin.scripts.stabilized_frame_publisher:main',       
             'sdf_visualizer_node = fcm_digital_twin.scripts.vision.sdf_visualizer_node:main',
-            'twin_orchestrator = fcm_digital_twin.scripts.control.twin_orchestrator:main'
+            'dose_logger = fcm_digital_twin.scripts.dose_logger:main',
+            'latency_simulator = fcm_digital_twin.scripts.latency_simulator:main',
+            'twin_orchestrator = fcm_digital_twin.scripts.control.twin_orchestrator:main',
+            'mission_control = fcm_digital_twin.scripts.control.mission_control:main'
         ],
     },
 )

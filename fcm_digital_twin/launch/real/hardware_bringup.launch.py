@@ -6,14 +6,14 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
-    # 0. БАЗОВЫЙ BRINGUP LINOROBOT2 (Запускаем ядро робота)
+    # 0. Core BRINGUP LINOROBOT2
     linorobot_bringup = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(get_package_share_directory('linorobot2_bringup'), 'launch', 'bringup.launch.py')
         )
     )
         
-    # 1. ЛИДАР
+    # 1. Lidar
     sllidar_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(get_package_share_directory('sllidar_ros2'), 'launch', 'sllidar_a1_launch.py')
@@ -21,13 +21,13 @@ def generate_launch_description():
         launch_arguments={'serial_port': '/dev/lidar', 'frame_id': 'laser'}.items()
     )
 
-    # 2. КАМЕРА
+    # 2. Camera
     camera_launch = ExecuteProcess(
         cmd=['ros2', 'launch', os.path.expanduser('~/ros2_ws/run_camera.launch.py')],
         output='screen'
     )
 
-    # 3. МОСТ FOXGLOVE (Теперь живет на самом роботе!)
+    # 3. Bridge FOXGLOVE
     foxglove_node = Node(
         package='foxglove_bridge',
         executable='foxglove_bridge',
@@ -35,12 +35,20 @@ def generate_launch_description():
         output='screen'
     )
 
-    # 4. УПРАВЛЕНИЕ МИССИЯМИ (Бортовой менеджер)
+    # 4. Mission Management (Onboard Manager)
     mission_manager_node = Node(
         package='fcm_digital_twin',
         executable='mission_manager',
-        # Сообщаем менеджеру, что он на реальном железе:
         parameters=[{'is_simulation': False}]
+    )
+    
+    # 5. Mission Control (Onboard Controller)
+    mission_control_node = Node(
+        package='fcm_digital_twin', 
+        executable='mission_control',
+        name='mission_control',
+        output='screen',
+        parameters=[{'use_sim_time': False}]
     )
 
     return LaunchDescription([
@@ -48,5 +56,6 @@ def generate_launch_description():
         sllidar_launch,
         camera_launch,
         foxglove_node,
-        mission_manager_node
+        mission_manager_node,
+        mission_control_node
     ])

@@ -15,7 +15,6 @@ def inject_env_var(context, *args, **kwargs):
 def generate_launch_description():
     fcm_pkg = FindPackageShare('fcm_digital_twin')
 
-    # === 1. АРГУМЕНТЫ ===
     world_file_arg = DeclareLaunchArgument('world_file', default_value='shelter.sdf')
     use_sim_time_arg = DeclareLaunchArgument('use_sim_time', default_value='true')
     use_3d_lidar_arg = DeclareLaunchArgument('use_3d_lidar', default_value='false')
@@ -25,13 +24,16 @@ def generate_launch_description():
 
     setup_env_func = OpaqueFunction(function=inject_env_var)
 
-    # === 2. БАЗОВАЯ СИМУЛЯЦИЯ (Gazebo) ===
     simulation_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([fcm_pkg, 'launch', 'simulation', 'simulation.launch.py'])),
-        launch_arguments={'world_file': LaunchConfiguration('world_file'), 'use_sim_time': use_sim_time}.items()
+        launch_arguments={
+            'world_file': LaunchConfiguration('world_file'), 
+            'use_sim_time': use_sim_time,
+            'use_3d_lidar': use_3d_lidar
+        }.items()
+        
     )
     
-    # === 3. ИНТЕРФЕЙС И ОРКЕСТРАТОРЫ ===
     foxglove_bridge_node = Node(
         package='foxglove_bridge',
         executable='foxglove_bridge',
@@ -54,10 +56,8 @@ def generate_launch_description():
         executable='twin_orchestrator',
         name='twin_orchestrator',
         output='screen'
-        # Скрипт реактивный, параметр use_sim_time ему не нужен
     )
 
-    # === 4. УЗЛЫ ОПЕРАТОРА (Только симуляция!) ===
     shadow_teleop_node = Node(
         package='fcm_digital_twin',
         executable='shadow_teleop_sim',
@@ -87,7 +87,7 @@ def generate_launch_description():
         launch_arguments={'joy_config': 'xbox'}.items() 
     )
 
-    # === 5. PIPELINE 3D ЛИДАРА ===
+    # === 5. PIPELINE 3D LIDAR ===
     gz_bridge_3d_node = Node(
         condition=IfCondition(use_3d_lidar),
         package='ros_gz_bridge',
@@ -115,12 +115,21 @@ def generate_launch_description():
         remappings=[('cloud_in', '/points'), ('scan', '/scan')],
         parameters=[{
             'target_frame': 'base_stabilized',
-            'min_height': 0.15,
+            'min_height': 0.25,
             'max_height': 1.5,  
             'use_sim_time': use_sim_time
         }]
     )
-        
+
+    # === MISSION CONTROL ===
+    mission_control_node = Node(
+        package='fcm_digital_twin',
+        executable='mission_control',
+        name='mission_control',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}] # В симуляции подхватит True
+    )
+
     return LaunchDescription([
         world_file_arg,
         use_sim_time_arg,
@@ -130,6 +139,7 @@ def generate_launch_description():
         
         simulation_launch,
         mission_manager_node,
+        mission_control_node,
         twin_orchestrator_node,
         
         shadow_teleop_node,

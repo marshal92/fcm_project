@@ -20,45 +20,44 @@ def generate_launch_description():
         [FindPackageShare("linorobot2_description"), "urdf/robots", f"{robot_base}.urdf.xacro"]
     )
     
-    # МАГИЯ ЗДЕСЬ: Мы динамически склеиваем путь к папке worlds и имя файла из аргумента
+    # Dynamically join the path to the worlds folder and the file name from the argument
     world_path = PathJoinSubstitution([
         FindPackageShare("fcm_digital_twin"), 
         "worlds", 
-        LaunchConfiguration('world_file')  # <- Берет значение из аргумента ниже
+        LaunchConfiguration('world_file') 
     ])
 
     robot_description_content = Command([
         PathJoinSubstitution([FindExecutable(name="xacro")]), " ",
         urdf_path, " ",
         "sim:=true ",        
-        "god_mode:=true"     # Идеальная одометрия для симуляции
+        "god_mode:=true"     
     ])
 
     return LaunchDescription([
         DeclareLaunchArgument('gui', default_value='true'),
         
-        # ТЕПЕРЬ АРГУМЕНТ - ЭТО ТОЛЬКО ИМЯ ФАЙЛА
         DeclareLaunchArgument('world_file', default_value='shelter.sdf', description='Name of the world file (e.g. empty.sdf)'),
         
         DeclareLaunchArgument('spawn_x', default_value='0.0'),
         DeclareLaunchArgument('spawn_y', default_value='0.0'),
-        DeclareLaunchArgument('spawn_z', default_value='0.1'),
+        DeclareLaunchArgument('spawn_z', default_value='1.0'),
         DeclareLaunchArgument('spawn_yaw', default_value='0.0'),
         
-        # 1. Запуск Газебо (передаем наш склеенный world_path)
+        # 1. Launch Gazebo
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(gazebo_launch_path),
             launch_arguments={'gz_args': [' -r -s ', world_path]}.items()
         ),
 
-        # 2. GUI Газебо
+        # 2. GUI Gazebo 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(gazebo_launch_path),
             condition=IfCondition(LaunchConfiguration('gui')),
             launch_arguments={'gz_args': [' -g']}.items()
         ),
 
-        # 3. Спавн робота
+        # 3. Spawn robot
         Node(
             package='ros_gz_sim',
             executable='create',
@@ -69,7 +68,7 @@ def generate_launch_description():
             ]
         ),
 
-        # 4. Мост ROS-Gazebo
+        # 4. Bridge ROS-Gazebo
         Node(
             package="ros_gz_bridge",
             executable="parameter_bridge",
@@ -94,7 +93,7 @@ def generate_launch_description():
             ]
         ),
 
-        # 5. Robot State Publisher (С НАШИМ god_mode)
+        # 5. Robot State Publisher
         Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',

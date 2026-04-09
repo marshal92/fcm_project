@@ -15,6 +15,8 @@ find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(nav2_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -27,8 +29,6 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
-
-# 1. Библиотека плагинов для Costmap (Радиация)
 
 add_library(fcm_costmap_plugins_core SHARED
   src/radiation_layer.cpp
@@ -48,11 +48,8 @@ ament_target_dependencies(fcm_costmap_plugins_core
   geometry_msgs
 )
 
-# Экспортируем XML файл для pluginlib
 pluginlib_export_plugin_description_file(nav2_costmap_2d plugins.xml)
 
-# 2. Плагины для Деревьев Поведения (BT Nodes)
-# Узел проверки связи
 add_library(is_connection_lost_bt_node SHARED
   src/is_connection_lost.cpp
 )
@@ -62,7 +59,6 @@ ament_target_dependencies(is_connection_lost_bt_node
   std_msgs
 )
 
-# Узел сохранения позиции
 add_library(set_base_pose_bt_node SHARED
   src/set_base_pose.cpp
 )
@@ -71,6 +67,16 @@ ament_target_dependencies(set_base_pose_bt_node
   behaviortree_cpp
   geometry_msgs
 )
+
+add_executable(alara_speed_reflex_node src/alara_speed_reflex.cpp)
+ament_target_dependencies(alara_speed_reflex_node
+  rclcpp
+  nav_msgs
+  nav2_msgs
+  tf2_ros
+  geometry_msgs
+)
+
 
 install(TARGETS 
   fcm_costmap_plugins_core
@@ -82,9 +88,16 @@ install(TARGETS
   RUNTIME DESTINATION bin
 )
 
+install(TARGETS 
+  alara_speed_reflex_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY include/
   DESTINATION include
 )
+
+
 
 ament_export_include_directories(include)
 ament_export_libraries(fcm_costmap_plugins_core)

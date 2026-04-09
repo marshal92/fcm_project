@@ -5,13 +5,13 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 
-# ИМПОРТИРУЕМ ИНСТРУМЕНТ ДЛЯ ПОДМЕНЫ ПУТЕЙ В YAML
+# Import the tool for rewriting paths in YAML
 from nav2_common.launch import RewrittenYaml 
 
 def generate_launch_description():
     fcm_pkg = FindPackageShare('fcm_digital_twin')
 
-    # ПРИНИМАЕМ АРГУМЕНТ ИЗ МАСТЕРА
+    # ACCEPTING ARGUMENT FROM THE MASTER
     map_name_arg = DeclareLaunchArgument('map_name', default_value='shelter_map')
     use_sim_time_arg = DeclareLaunchArgument('use_sim_time', default_value='true')
 
@@ -19,7 +19,7 @@ def generate_launch_description():
         [fcm_pkg, 'config', 'slam', 'slam_lifelong.yaml']
     )
 
-    # ДИНАМИЧЕСКИЙ ПУТЬ: Берет имя из аргумента map_name
+    # Dynamic path: Takes the name from the map_name argument
     posegraph_path = PathJoinSubstitution(
         [fcm_pkg, 'maps', LaunchConfiguration('map_name')]
     )
@@ -33,9 +33,8 @@ def generate_launch_description():
         },
         convert_types=True
     )
-
     slam_launch_path = PathJoinSubstitution(
-         [FindPackageShare('slam_toolbox'), 'launch', 'online_async_launch.py']
+         [FindPackageShare('slam_toolbox'), 'launch', 'localization_launch.py']
     )
 
     return LaunchDescription([

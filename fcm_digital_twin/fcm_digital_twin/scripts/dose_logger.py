@@ -24,7 +24,6 @@ class TelemetryLogger(Node):
         self.last_y = None
         self.start_time = time.time()
 
-        # Открываем CSV файл для записи (сохранится в папке, откуда запущен скрипт)
         self.csv_file = open('mission_telemetry.csv', mode='w', newline='')
         self.csv_writer = csv.writer(self.csv_file)
         self.csv_writer.writerow(['Time_sec', 'X_m', 'Y_m', 'Speed_mps', 'Dose_Rate_uSv_h', 'Accum_Dose_uSv', 'Distance_m'])
@@ -45,19 +44,17 @@ class TelemetryLogger(Node):
         self.latest_map = msg
 
     def odom_callback(self, msg):
-        # Читаем текущую физическую скорость танка из одометрии
         self.current_speed = msg.twist.twist.linear.x
 
     def log_telemetry(self):
         if self.latest_map is None: return
 
         try:
-            trans = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
+            trans = self.tf_buffer.lookup_transform('map', 'base_footprint', rclpy.time.Time())
             rx = trans.transform.translation.x
             ry = trans.transform.translation.y
         except Exception: return
 
-        # Считаем пройденный путь
         if self.last_x is not None and self.last_y is not None:
             dx = rx - self.last_x
             dy = ry - self.last_y
@@ -65,7 +62,6 @@ class TelemetryLogger(Node):
         self.last_x = rx
         self.last_y = ry
 
-        # Ищем радиацию под танком
         res = self.latest_map.info.resolution
         ox = self.latest_map.info.origin.position.x
         oy = self.latest_map.info.origin.position.y
@@ -80,10 +76,8 @@ class TelemetryLogger(Node):
             if rad_percent > 0:
                 dose_rate = (rad_percent / 100.0) * self.max_lethal_dose
 
-        # Интегрируем дозу
         self.accumulated_dose += dose_rate * self.dt_hours
 
-        # Пишем строку в CSV
         elapsed_time = time.time() - self.start_time
         self.csv_writer.writerow([
             round(elapsed_time, 2), 
@@ -109,7 +103,7 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        node.csv_file.close() # Обязательно закрываем файл при выходе
+        node.csv_file.close()
         node.destroy_node()
         rclpy.shutdown()
 

@@ -11,21 +11,14 @@ using nav2_costmap_2d::LETHAL_OBSTACLE;
 namespace fcm_costmap_plugins
 {
 
-RadiationLayer::RadiationLayer()
-: need_bounds_update_(false)
-{
-}
+RadiationLayer::RadiationLayer() : need_bounds_update_(false) {}
 
 void RadiationLayer::onInitialize()
 {
   auto node = node_.lock(); 
-  if (!node) {
-    throw std::runtime_error("Failed to lock node");
-  }
+  if (!node) throw std::runtime_error("Failed to lock node");
 
   declareParameter("radiation_topic", rclcpp::ParameterValue("/radiation_map"));
-  
-  // === ПАРАМЕТРЫ ИЗ ФОРМУЛЫ (2.41) ===
   declareParameter("r_noise", rclcpp::ParameterValue(15.0)); 
   declareParameter("r_crit", rclcpp::ParameterValue(90.0)); 
   declareParameter("r_soft", rclcpp::ParameterValue(15.0)); 
@@ -34,15 +27,13 @@ void RadiationLayer::onInitialize()
 
   std::string topic = node->get_parameter(name_ + ".radiation_topic").as_string();
   
-  // === ИСПОЛЬЗУЕМ TRANSIENT LOCAL QoS ДЛЯ СОВМЕСТИМОСТИ ===
   rad_map_sub_ = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
     topic, rclcpp::QoS(1).transient_local(),
     std::bind(&RadiationLayer::mapCallback, this, std::placeholders::_1));
 
   current_ = true;
   enabled_ = true;
-  
-  RCLCPP_INFO(node->get_logger(), "===> RadiationLayer V3 (Formula 2.41 + Transient Local) Initialized!");
+  RCLCPP_INFO(node->get_logger(), "===> RadiationLayer V4 (LUT Optimized) Initialized!");
 }
 
 void RadiationLayer::mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
@@ -50,11 +41,6 @@ void RadiationLayer::mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr m
   std::lock_guard<std::mutex> lock(data_mutex_);
   latest_rad_map_ = msg;
   need_bounds_update_ = true;
-  
-  auto node = node_.lock();
-  if (node) {
-      RCLCPP_INFO_ONCE(node->get_logger(), "===> BINGO! First radiation map received by C++ plugin!");
-  }
 }
 
 void RadiationLayer::updateBounds(
@@ -88,17 +74,25 @@ void RadiationLayer::updateCosts(
   std::lock_guard<std::mutex> lock(data_mutex_);
   auto node = node_.lock();
   
-  // Диагностика: выводит сообщение раз в 10 секунд во время работы
-  auto & clk = *node->get_clock();
-  RCLCPP_INFO_THROTTLE(node->get_logger(), clk, 10000, "===> Applying ALARA costs to master grid...");
-  
   double r_noise = node->get_parameter(name_ + ".r_noise").as_double();
   double r_crit  = node->get_parameter(name_ + ".r_crit").as_double();
   double r_soft  = node->get_parameter(name_ + ".r_soft").as_double();
   double beta    = node->get_parameter(name_ + ".beta").as_double();
   int c_lethal   = node->get_parameter(name_ + ".c_lethal").as_int();
-  
   if (c_lethal > 252) c_lethal = 252;
+
+  // OPTIMIZATION: Preliminary calculation of the exponent (LUT)
+  int cost_lut[101];
+  for (int R = 0; R <= 100; ++R) {
+    if (R <= r_noise) {
+      cost_lut[R] = 0;
+    } else if (R >= r_crit) {
+      cost_lut[R] = c_lethal;
+    } else {
+      double raw_cost = beta * (std::exp((R - r_noise) / r_soft) - 1.0);
+      cost_lut[R] = std::min(static_cast<int>(raw_cost), c_lethal);
+    }
+  }
 
   double res = latest_rad_map_->info.resolution;
   double ox = latest_rad_map_->info.origin.position.x;
@@ -108,7 +102,6 @@ void RadiationLayer::updateCosts(
 
   for (int j = min_j; j < max_j; j++) {
     for (int i = min_i; i < max_i; i++) {
-      
       double wx, wy;
       master_grid.mapToWorld(i, j, wx, wy);
       
@@ -117,41 +110,16 @@ void RadiationLayer::updateCosts(
 
       if (rad_x < 0 || rad_x >= width || rad_y < 0 || rad_y >= height) continue;
 
-      int rad_index = rad_y * width + rad_x;
-      int8_t rad_value = latest_rad_map_->data[rad_index];
+      int8_t rad_value = latest_rad_map_->data[rad_y * width + rad_x];
+      if (rad_value < 0 || rad_value > 100) continue;
 
-      // Пропускаем "неизвестные" зоны из карты телеметрии (-1)
-      if (rad_value < 0) continue;
+      // OPTIMIZATION: We get the finished value in O(1) nanoseconds
+      int cost = cost_lut[rad_value];
 
-      double R = static_cast<double>(rad_value);
-      int cost = 0;
-
-      // ==========================================================
-      // РЕАЛИЗАЦИЯ ФОРМУЛЫ (2.41) ИЗ ДИССЕРТАЦИИ
-      // ==========================================================
-      if (R <= r_noise) {
-        cost = 0;
-      } 
-      else if (R >= r_crit) {
-        cost = c_lethal;
-      } 
-      else {
-        double exponent = (R - r_noise) / r_soft;
-        double raw_cost = beta * (std::exp(exponent) - 1.0);
-        cost = static_cast<int>(raw_cost);
-      }
-      // ==========================================================
-
-      cost = std::min(cost, c_lethal);
-      cost = std::max(cost, 0);
+      if (cost == 0) continue;
 
       unsigned char old_cost = master_grid.getCost(i, j);
-      
-      // ВАЖНО: Разрешаем наложение поверх серой зоны (NO_INFORMATION)
-      // Блокируем перезапись только реальных физических препятствий (стен)
-      if (old_cost == LETHAL_OBSTACLE) {
-        continue; 
-      }
+      if (old_cost == LETHAL_OBSTACLE) continue; 
       
       master_grid.setCost(i, j, std::max(static_cast<int>(old_cost), cost));
     }
@@ -165,4 +133,4 @@ void RadiationLayer::reset()
   need_bounds_update_ = true;
 }
 
-}  // namespace fcm_costmap_plugins
+}

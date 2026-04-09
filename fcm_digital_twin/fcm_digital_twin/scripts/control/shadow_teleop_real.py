@@ -53,11 +53,11 @@ class ShadowTeleopReal(Node):
         self.state      = 'IDLE'
         self.was_moving = False
 
-        # Costmap в numpy — конвертируем один раз при получении
+        # Costmap to NumPy - Convert Once Upon Receipt
         self._costmap_array: np.ndarray | None = None
         self._costmap_info = None
 
-        # Переиспользуемые объекты — не создаём каждый тик
+        # Reusable objects - we don’t create every tick
         self._tf_msg = TransformStamped()
         self._tf_msg.header.frame_id   = 'map'
         self._tf_msg.child_frame_id    = 'shadow_base_link'
@@ -76,7 +76,7 @@ class ShadowTeleopReal(Node):
         self._ui_counter = 0
         self.last_time   = self.get_clock().now()
 
-        # На реальном роботе use_sim_time=false → таймер использует OS-время, всё ок
+        # On the real robot use_sim_time=false → timer uses OS time, all good
         self.timer = self.create_timer(1.0 / 30.0, self.update_loop)
 
         self.get_logger().info("Shadow Node Started (REAL ROBOT)")
@@ -86,7 +86,7 @@ class ShadowTeleopReal(Node):
     # ------------------------------------------------------------------ #
 
     def costmap_cb(self, msg: OccupancyGrid):
-        """Конвертируем в numpy один раз — все lookup O(1)."""
+        """Converting to numpy one time — all lookup O(1)."""
         self._costmap_info  = msg.info
         self._costmap_array = np.array(msg.data, dtype=np.int8).reshape(
             msg.info.height, msg.info.width)
@@ -103,7 +103,7 @@ class ShadowTeleopReal(Node):
         return int(self._costmap_array[gy, gx])
 
     def check_path_clear(self, x0, y0, x1, y1) -> int:
-        """Векторизованный raycast — без Python-цикла."""
+        """Vectorized raycast — without Python loop."""
         if self._costmap_array is None:
             return 0
         dist = math.hypot(x1 - x0, y1 - y0)
@@ -122,7 +122,7 @@ class ShadowTeleopReal(Node):
         return int(np.max(self._costmap_array[gys, gxs]))
 
     # ------------------------------------------------------------------ #
-    #  Колбеки                                                             #
+    #  Colbecks                                                             #
     # ------------------------------------------------------------------ #
 
     def cmd_cb(self, msg: Twist):
@@ -150,7 +150,7 @@ class ShadowTeleopReal(Node):
             self.robot_pose_valid = False
 
     # ------------------------------------------------------------------ #
-    #  Навигация — нормальные методы вместо lambda-цепочки                #
+    #  Navigation - normal methods instead of lambda chain                #
     # ------------------------------------------------------------------ #
 
     def cancel_active_goal(self):
@@ -177,18 +177,18 @@ class ShadowTeleopReal(Node):
 
     def _send_nav_path(self):
         if not self.nav_client.wait_for_server(timeout_sec=2.0):
-            self.get_logger().error("Nav2 недоступен!")
+            self.get_logger().error("Nav2 unavailable!")
             return
         goal = NavigateThroughPoses.Goal()
         goal.poses = self.recorded_poses
         self.state = 'NAVIGATING'
-        self.get_logger().info(f"Старт маршрута ({len(self.recorded_poses)} точек)")
+        self.get_logger().info(f"Starting route ({len(self.recorded_poses)} points)")
         self.nav_client.send_goal_async(goal).add_done_callback(self._goal_response_cb)
 
     def _goal_response_cb(self, future):
         handle = future.result()
         if not handle.accepted:
-            self.get_logger().warn("Цель отклонена Nav2.")
+            self.get_logger().warn("Goal rejected by Nav2.")
             self.state = 'IDLE'
             return
         self.current_goal_handle = handle
@@ -197,11 +197,11 @@ class ShadowTeleopReal(Node):
     def _goal_result_cb(self, future):
         status = future.result().status
         if status == GoalStatus.STATUS_SUCCEEDED:
-            self.get_logger().info("Миссия выполнена.")
+            self.get_logger().info("Mission completed.")
         elif status == GoalStatus.STATUS_CANCELED:
-            self.get_logger().warn("Миссия отменена.")
+            self.get_logger().warn("Mission canceled.")
         else:
-            self.get_logger().error(f"Миссия завершилась со статусом: {status}")
+            self.get_logger().error(f"Mission failed with status: {status}")
         self.current_goal_handle = None
         self.state = 'IDLE'
         self.recorded_poses.clear()
@@ -209,7 +209,7 @@ class ShadowTeleopReal(Node):
         self._path_dirty = True
 
     # ------------------------------------------------------------------ #
-    #  Вспомогательные                                                     #
+    #  Auxiliary                                                     #
     # ------------------------------------------------------------------ #
 
     @staticmethod
@@ -239,7 +239,7 @@ class ShadowTeleopReal(Node):
             self._path_dirty = True
 
     # ------------------------------------------------------------------ #
-    #  Главный цикл                                                        #
+    #  Main cycle                                                        #
     # ------------------------------------------------------------------ #
 
     def update_loop(self):
@@ -250,7 +250,7 @@ class ShadowTeleopReal(Node):
 
         self.update_robot_pose()
 
-        # --- Физика ---
+        # --- Physics ---
         new_x     = self.x + self.v * math.cos(self.theta) * dt
         new_y     = self.y + self.v * math.sin(self.theta) * dt
         new_theta = self.theta + self.w * dt
@@ -273,7 +273,7 @@ class ShadowTeleopReal(Node):
         qz = math.sin(self.theta / 2.0)
         qw = math.cos(self.theta / 2.0)
 
-        # --- TF (переиспользуем объект) ---
+        # --- TF (reuse the object) ---
         self._tf_msg.header.stamp           = stamp
         self._tf_msg.transform.translation.x = self.x
         self._tf_msg.transform.translation.y = self.y
@@ -281,7 +281,7 @@ class ShadowTeleopReal(Node):
         self._tf_msg.transform.rotation.w   = qw
         self.tf_broadcaster.sendTransform(self._tf_msg)
 
-        # --- Визуализация 10Hz ---
+        # --- Visualization 10Hz ---
         self._ui_counter += 1
         if self._ui_counter < 3:
             if self._path_dirty and self.recorded_poses:
@@ -311,7 +311,7 @@ class ShadowTeleopReal(Node):
                 m.color.r, m.color.g, m.color.b, m.color.a = 0.0, 1.0, 1.0, 0.4
         self.marker_pub.publish(m)
 
-        # --- Запись пути ---
+        # Recording the path
         if is_moving:
             self.was_moving = True
             if self.state in ('IDLE', 'DRAWING'):

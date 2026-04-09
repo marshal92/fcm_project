@@ -1,0 +1,73 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <world name="shelter_zero">
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"></plugin>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"></plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <pose>7.8 19.4 0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>40 75</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>40 74.4</size></plane></geometry>
+          <material><ambient>0.8 0.8 0.8 1</ambient><diffuse>0.8 0.8 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    
+    <model name="shelter_environment">
+      <static>true</static>
+      <pose>0 0 -0.5 0 0 0</pose>
+      <link name="environment_link">
+        
+         <collision name="zs_main_walls_collision">
+          <geometry><mesh><uri>file:///home/oleksandr/ros2_ws/src/fcm_project/fcm_digital_twin/worlds/Gazebo_Meshes/zs_main_walls.stl</uri></mesh></geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="zs_main_walls_visual">
+          <geometry><mesh><uri>file:///home/oleksandr/ros2_ws/src/fcm_project/fcm_digital_twin/worlds/Gazebo_Meshes/zs_main_walls.stl</uri></mesh></geometry>
+          <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.6 0.6 0.6 1</diffuse></material>
+        </visual>
+        
+        <collision name="zs_pip_forset_collision">
+          <geometry><mesh><uri>file:///home/oleksandr/ros2_ws/src/fcm_project/fcm_digital_twin/worlds/Gazebo_Meshes/zs_pip_forset.stl</uri></mesh></geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="zs_pip_forset_visual">
+          <geometry><mesh><uri>file:///home/oleksandr/ros2_ws/src/fcm_project/fcm_digital_twin/worlds/Gazebo_Meshes/zs_pip_forset.stl</uri></mesh></geometry>
+          <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.6 0.6 0.6 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>

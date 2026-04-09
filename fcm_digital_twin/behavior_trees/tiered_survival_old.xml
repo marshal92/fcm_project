@@ -1,0 +1,36 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+    <BehaviorTree ID="MainTree">
+        <ReactiveSequence name="Main_Logic">
+            
+            <ReactiveFallback name="Connection_Handler">
+                
+                <Inverter>
+                    <IsConnectionLost timeout="3.0" />
+                </Inverter>
+                
+                <Sequence name="Emergency_Protocol">
+                    <Wait wait_duration="10.0" />
+                    
+                    <ClearEntireCostmap name="ClearLocal" service_name="local_costmap/clear_entirely_local_costmap" server_timeout="5000"/>
+                    <SetBasePose base_pose="{home_goal}" />
+                    
+                    <PipelineSequence name="Drive_Home">
+                        <RateController hz="1.0">
+                            <ComputePathToPose goal="{home_goal}" path="{home_path}" planner_id="GridBased"/>
+                        </RateController>
+                        <FollowPath path="{home_path}" controller_id="FollowPath"/>
+                    </PipelineSequence>
+                </Sequence>
+                
+            </ReactiveFallback>
+
+            <PipelineSequence name="Normal_Operations">
+                <RateController hz="1.0">
+                    <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+                </RateController>
+                <FollowPath path="{path}" controller_id="FollowPath"/>
+            </PipelineSequence>
+
+        </ReactiveSequence>
+    </BehaviorTree>
+</root>

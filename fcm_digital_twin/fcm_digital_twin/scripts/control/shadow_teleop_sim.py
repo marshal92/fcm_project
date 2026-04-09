@@ -29,7 +29,7 @@ class ShadowTeleopSim(Node):
             durability=DurabilityPolicy.VOLATILE
         )
 
-        # === ВАЖНО: НИКАКИХ ПОДПИСОК НА /clock! ===
+        # === IMPORTANT: NO SUBSCRIPTIONS TO /clock! ===
 
         self.cmd_sub = self.create_subscription(Twist, '/cmd_vel_shadow', self.cmd_cb, cmd_qos)
         self.command_sub = self.create_subscription(String, '/shadow_command', self.command_cb, cmd_qos)
@@ -82,7 +82,7 @@ class ShadowTeleopSim(Node):
         self._ui_counter = 0
         self._last_real_ns: int | None = None   
 
-        # Переменная для "украденного" времени
+        # Variable for "stolen" time
         self.latest_sim_time_msg = None
 
         self._loop_thread = threading.Thread(
@@ -93,7 +93,7 @@ class ShadowTeleopSim(Node):
         self.get_logger().info("Shadow Node SIMULATION Started (Time Thief Mode - No CPU overload!)")
 
     # ------------------------------------------------------------------ #
-    #  OS-поток: настоящий 30Hz на системных часах                       #
+    #  OS-thread: true 30Hz on system clock                       #
     # ------------------------------------------------------------------ #
 
     def _real_time_loop(self):
@@ -110,7 +110,7 @@ class ShadowTeleopSim(Node):
                 time.sleep(sleep_time)
 
     # ------------------------------------------------------------------ #
-    #  Колбеки подписок                                                  #
+    #  Colbecks                                                             #
     # ------------------------------------------------------------------ #
 
     def cmd_cb(self, msg: Twist):
@@ -195,7 +195,7 @@ class ShadowTeleopSim(Node):
 
     def _make_pose_stamped(self, x, y, theta) -> PoseStamped:
         p = PoseStamped()
-        p.header.stamp    = self.latest_sim_time_msg  # Используем украденное время
+        p.header.stamp    = self.latest_sim_time_msg  # Use the stolen time
         p.header.frame_id = 'map'
         p.pose.position.x = x
         p.pose.position.y = y
@@ -231,9 +231,9 @@ class ShadowTeleopSim(Node):
     def _goal_result_cb(self, future):
         status = future.result().status
         if status == GoalStatus.STATUS_SUCCEEDED:
-            self.get_logger().info("Миссия выполнена.")
+            self.get_logger().info("Mission completed.")
         elif status == GoalStatus.STATUS_CANCELED:
-            self.get_logger().warn("Миссия отменена.")
+            self.get_logger().warn("Mission canceled.")
         self.current_goal_handle = None
         self.state = 'IDLE'
         self.recorded_poses.clear()
@@ -241,15 +241,15 @@ class ShadowTeleopSim(Node):
         self._path_dirty = True
 
     # ------------------------------------------------------------------ #
-    #  Главный цикл (вызывается из OS-потока, 30Hz)                      #
+    #  Main cycle (called from OS-thread, 30Hz)                      #
     # ------------------------------------------------------------------ #
 
     def _update(self):
-        # === ВОРУЕМ ВРЕМЯ ИЗ TF ===
+        # === STEALING TIME FROM TF ===
         try:
-            # Time(0) дает нам самый свежий доступный TF (Обычно 30-50 Гц)
+            # Time(0) gives us the latest available TF
             t = self.tf_buffer.lookup_transform('map', 'base_footprint', rclpy.time.Time())
-            self.latest_sim_time_msg = t.header.stamp  # Сохраняем штамп времени симуляции!
+            self.latest_sim_time_msg = t.header.stamp
             self.robot_x = t.transform.translation.x
             self.robot_y = t.transform.translation.y
             self.robot_yaw = self._yaw_from_quat(t.transform.rotation)
@@ -257,11 +257,10 @@ class ShadowTeleopSim(Node):
         except Exception:
             self.robot_pose_valid = False
 
-        # Если мы еще не получили ни одного TF, нам нечем штамповать сообщения
         if self.latest_sim_time_msg is None:
             return
 
-        # Физика всегда считается по реальному времени процессора
+        # Physics is always calculated using real CPU time
         real_ns = time.monotonic_ns()
         if self._last_real_ns is None:
             self._last_real_ns = real_ns
@@ -269,7 +268,7 @@ class ShadowTeleopSim(Node):
         dt = (real_ns - self._last_real_ns) / 1e9
         self._last_real_ns = real_ns
 
-        # --- Физика ---
+        # --- Physics ---
         new_x     = self.x + self.v * math.cos(self.theta) * dt
         new_y     = self.y + self.v * math.sin(self.theta) * dt
         new_theta = self.theta + self.w * dt
@@ -300,7 +299,7 @@ class ShadowTeleopSim(Node):
         self._tf_msg.transform.rotation.w  = qw
         self.tf_broadcaster.sendTransform(self._tf_msg)
 
-        # --- Визуализация 10Hz ---
+        # --- Visualization 10Hz ---
         self._ui_counter += 1
         if self._ui_counter < 3:
             if self._path_dirty and self.recorded_poses:
@@ -329,7 +328,7 @@ class ShadowTeleopSim(Node):
                 m.color.r, m.color.g, m.color.b, m.color.a = 0.0, 1.0, 1.0, 0.4
         self.marker_pub.publish(m)
 
-        # --- Запись пути ---
+        # --- Recording Path ---
         if is_moving:
             self.was_moving = True
             if self.state in ('IDLE', 'DRAWING'):

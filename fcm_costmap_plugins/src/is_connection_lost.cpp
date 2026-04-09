@@ -17,25 +17,22 @@ public:
     auto main_node = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
     getInput("timeout", timeout_);
 
-    RCLCPP_INFO(main_node->get_logger(), "\033[1;32m[Heartbeat] Автономный слушатель запущен. Таймаут: %.1f сек\033[0m", timeout_);
+    RCLCPP_INFO(main_node->get_logger(), "\033[1;32m[Heartbeat] Autonomous listener started. Timeout: %.1f сек\033[0m", timeout_);
 
-    // 1. Создаем эксклюзивную группу коллбеков, чтобы Nav2 ее не блокировал
     callback_group_ = main_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::SubscriptionOptions sub_options;
     sub_options.callback_group = callback_group_;
 
-    // 2. Подписываемся на пульс
     sub_ = main_node->create_subscription<std_msgs::msg::Empty>(
       "/operator_heartbeat", 10,
       [this, main_node](const std_msgs::msg::Empty::SharedPtr) {
         last_heartbeat_time_ = std::chrono::steady_clock::now();
         if (!first_message_received_) {
-            RCLCPP_INFO(main_node->get_logger(), "\033[1;34m[Heartbeat] ПЕРВЫЙ ПУЛЬС ПОЛУЧЕН! Движение разрешено.\033[0m");
+            RCLCPP_INFO(main_node->get_logger(), "\033[1;34m[Heartbeat] FIRST PULSE RECEIVED! Movement is allowed..\033[0m");
             first_message_received_ = true;
         }
       }, sub_options);
 
-    // 3. ЗАПУСКАЕМ ОТДЕЛЬНЫЙ ПОТОК (Гарантия получения сообщений)
     executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
     executor_->add_callback_group(callback_group_, main_node->get_node_base_interface());
     
@@ -44,7 +41,6 @@ public:
     });
   }
 
-  // Деструктор: аккуратно убиваем поток при выключении робота
   ~IsConnectionLost() override
   {
     if (executor_) {
@@ -64,21 +60,20 @@ public:
   {
     auto main_node = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
 
-    // ИСПРАВЛЕННАЯ ЛОГИКА: Если пульса ЕЩЕ НЕ БЫЛО - робот не имеет права ехать!
     if (!first_message_received_) {
-      return BT::NodeStatus::SUCCESS; // Возвращаем SUCCESS (Условие "СВЯЗЬ ПОТЕРЯНА" = Истина)
+      return BT::NodeStatus::SUCCESS;
     }
 
     auto now = std::chrono::steady_clock::now();
     std::chrono::duration<double> elapsed = now - last_heartbeat_time_;
 
     if (elapsed.count() > timeout_) {
-      RCLCPP_WARN(main_node->get_logger(), "\033[1;31m[Heartbeat] ОБРЫВ СВЯЗИ! Тормозим... (Нет сигнала %.1f сек)\033[0m", elapsed.count());
-      first_message_received_ = false; // Сбрасываем флаг, чтобы ждать восстановления
-      return BT::NodeStatus::SUCCESS;  // Связь потеряна
+      RCLCPP_WARN(main_node->get_logger(), "\033[1;31m[Heartbeat] CONNECTION LOST! Stopping... (No signal for %.1f sec)\033[0m", elapsed.count());
+      first_message_received_ = false; 
+      return BT::NodeStatus::SUCCESS;  
     }
 
-    return BT::NodeStatus::FAILURE; // Связь ЕСТЬ (Условие "Связь потеряна" = Ложь)
+    return BT::NodeStatus::FAILURE; 
   }
 
 private:

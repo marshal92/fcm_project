@@ -1,0 +1,414 @@
+# КОНФІГУРАЦІЯ NAV2 ДЛЯ ГУСЕНИЧНОЇ ПЛАТФОРМИ (У РЕЖИМІ DIFFERENTIAL DRIVE)
+
+# --- ЛОКАЛІЗАЦІЯ (AMCL) ---
+amcl:
+  ros__parameters:
+    alpha1: 0.8                 # Шум одометрії при обертанні (збільшено через проковзування гусениць)
+    alpha2: 0.2
+    alpha3: 0.8                 # Шум одометрії при русі прямо
+    alpha4: 0.2
+    alpha5: 0.2
+    base_frame_id: "base_footprint"
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.3
+    do_beamskip: false
+    global_frame_id: "map"
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+    laser_max_range: 100.0
+    laser_min_range: -1.0
+    laser_model_type: "likelihood_field"
+    max_beams: 60
+    max_particles: 1000         # Оптимізація для Raspberry Pi 5
+    min_particles: 300   
+    odom_frame_id: "odom"
+    pf_err: 0.05
+    pf_z: 0.99
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    resample_interval: 1 
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    save_pose_rate: 0.5
+    sigma_hit: 0.2
+    tf_broadcast: true
+    transform_tolerance: 4.0    # Захист від лагів TF-дерева в ROS 2
+    update_min_a: 0.2
+    update_min_d: 0.25
+    z_hit: 0.5
+    z_max: 0.05
+    z_rand: 0.5
+    z_short: 0.05
+    scan_topic: scan
+
+# --- ДЕРЕВО ПОВЕДІНКИ (BEHAVIOR TREE) ---
+bt_navigator:
+  ros__parameters:
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    wait_for_service_timeout: 1000
+    action_server_result_timeout: 900.0
+    transform_tolerance: 1.5    # FIX: Добавили толерантность сюда
+    navigators: ["navigate_to_pose", "navigate_through_poses"]
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
+    navigate_through_poses:
+      plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
+    error_code_names:
+      - compute_path_error_code
+      - follow_path_error_code
+
+# ========================================================
+    # === ДОБАВЛЯЕМ ПУТЬ К НАШЕМУ ДЕРЕВУ И ПЛАГИНЫ СЮДА ===
+    # ========================================================
+    
+    # Указываем абсолютный путь к твоему новому дереву:
+    #default_nav_to_pose_bt_xml: "/home/oleksandr/ros2_ws/install/fcm_digital_twin/share/fcm_digital_twin/behavior_trees/tiered_survival.xml"
+    #default_nav_to_pose_bt_xml: "bt_xml_path"
+
+    # Явно перечисляем стандартные плагины Nav2 + наши кастомные
+    #plugin_lib_names:
+    #  - is_connection_lost_bt_node
+    #  - set_base_pose_bt_node
+
+
+# --- СЕРВЕР УПРАВЛІННЯ (ЛОКАЛЬНИЙ ПЛАНУВАЛЬНИК) ---
+controller_server:
+  ros__parameters:
+    controller_frequency: 5.0
+    transform_tolerance: 1.5
+    costmap_update_timeout: 1.0 
+    failure_tolerance: 2.0
+    progress_checker_plugins: ["progress_checker"]
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+
+    min_x_velocity_threshold: 0.001 # Заборона руху задом для гусениць
+    min_y_velocity_threshold: 0.5 # Заборона руху боком для гусениць
+    min_theta_velocity_threshold: 0.001 # Заборона дрібних поворотів, которые гусеницы не могут выполнить
+    use_realtime_priority: false
+    
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 10.0
+
+    general_goal_checker:
+      stateful: True
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.1   
+      yaw_goal_tolerance: 0.1
+    
+    FollowPath:
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "dwb_core::DWBLocalPlanner"
+      angular_dist_threshold: 0.785        # ~45 градусів. Якщо відхилення більше - танк крутиться на місці
+      forward_sampling_distance: 0.5       # Дивиться на 0.5м вперед по маршруту, щоб зрозуміти куди крутитися
+      rotate_to_heading_angular_vel: 1.0   # Швидкість розвороту
+      max_angular_accel: 1.5
+      simulate_ahead_time: 0.0
+      
+      use_dwa: True            
+      debug_trajectory_details: True
+
+      # ЛІМІТИ ШВИДКОСТІ
+      min_vel_x: 0.0            # Заборона руху задом
+      min_vel_y: 0.0
+      max_vel_x: 1.2            # Крейсерська швидкість прямо
+      max_vel_y: 0.0
+      max_vel_theta: 2.0        # Максимальна швидкість обертання
+      min_speed_xy: 0.0
+      max_speed_xy: 1.2
+      min_speed_theta: 0.2      # Мінімальна швидкість обертання
+
+      # ЛІМІТИ ПРИСКОРЕННЯ
+      acc_lim_x: 1.0            # Динаміка розгону
+      acc_lim_y: 0.0
+      acc_lim_theta: 1.0        # Потужний крутний момент для зриву гусениць
+      decel_lim_x: -1.0
+      decel_lim_y: 0.0
+      decel_lim_theta: -1.0
+
+      # ПАРАМЕТРИ ГЕНЕРАЦІЇ ТРАЄКТОРІЙ
+      vx_samples: 40
+      vy_samples: 1             # Y=1, оскільки робот не їздить боком (голономно)
+      vtheta_samples: 40        # Більше варіантів для точного підбору дуги повороту
+      sim_time: 2.0             # На скільки секунд вперед контролер "заглядає"
+      linear_granularity: 0.05
+      angular_granularity: 0.025
+      
+      # ДОПУСКИ ТА СТАТУСИ (Повинні синхронізуватися з general_goal_checker)
+      transform_tolerance: 1.5
+      xy_goal_tolerance: 0.1
+      yaw_goal_tolerance: 0.1
+      trans_stopped_velocity: 0.2 # Швидкість, нижче якої робот вважається "зупиненим" для переходу до довороту (RotateToGoal)
+      short_circuit_trajectory_evaluation: True
+      stateful: True
+      prune_plan: true
+      prune_distance: 1.5
+
+      # ШТРАФИ ТА КРИТИКИ (Налаштування поведінки на маршруті)
+      critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+      BaseObstacle.scale: 8.0                # Штраф за фізичну присутність перешкоди в базовій зоні (навколо робота)
+      PathAlign.scale: 32.0                   # Наскільки жорстко триматися зеленої лінії
+      PathAlign.forward_point_distance: 0.4  # На скільки вперед по траєкторії дивиться критик для вирівнювання
+      GoalAlign.scale: 26.0                   # Штраф за відхилення носа від кінцевої мети
+      GoalAlign.forward_point_distance: 0.1   # На скільки вперед дивиться критик для вирівнювання на фініші 
+      PathDist.scale: 30.0                    # Штраф за фізичне віддалення від зеленої лінії
+      GoalDist.scale: 20.0                    # Штраф за відстань до кінцевої мети (змушує рухатися навіть по поганій траєкторії, якщо вона веде до цілі)
+      RotateToGoal.scale: 30.0                # Пріоритет фінального розвороту на місці 
+      RotateToGoal.slowing_factor: 4.0        # Наскільки сильно знижувати швидкість при наближенні до цілі для плавного розвороту
+      RotateToGoal.lookahead_time: -1.0
+
+# --- ЛОКАЛЬНА КАРТА ВАРТОСТІ (ОБХІД ДИНАМІЧНИХ ПЕРЕШКОД) ---    
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 3.0
+      publish_frequency: 2.0
+      transform_tolerance: 1.5
+      global_frame: odom
+      robot_base_frame: base_link
+      rolling_window: true
+      width: 3
+      height: 3
+      resolution: 0.05
+      footprint: "[[-0.3, -0.25], [-0.3, 0.25], [0.3, 0.25], [0.3, -0.25]]"
+      plugins: ["voxel_layer", "inflation_layer"]
+      
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 5.0  # Крутизна спадання штрафу від стіни 
+        inflation_radius: 0.38   # Радіус роздування перешкод (безпечна зона)
+        
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: True
+        publish_voxel_map: True
+        origin_z: 0.0
+        z_resolution: 0.05
+        z_voxels: 16
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
+          
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+      always_send_full_costmap: True # Важливо для оптимізації на слабом железе - отправляем только изменения, а не всю карту целиком
+
+# --- ГЛОБАЛЬНА КАРТА ВАРТОСТІ (АПРІОРНА КАРТА + РАДІАЦІЯ) ---
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 0.5
+      publish_frequency: 0.5
+      transform_tolerance: 1.5
+      global_frame: map
+      robot_base_frame: base_link
+      #robot_radius: 0.3
+      footprint: "[[-0.35, -0.30], [-0.35, 0.30], [0.35, 0.30], [0.35, -0.30]]"
+      resolution: 0.05
+      track_unknown_space: true
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer", "radiation_layer" ]
+      
+      radiation_layer:
+        plugin: "fcm_costmap_plugins::RadiationLayer"
+        radiation_topic: "/radiation_map"
+        r_noise: 15.0      # Поріг фонового шуму
+        r_crit: 50.0       # Критична доза (LETHAL)
+        r_soft: 25.0       # Крутизна експоненти
+        beta: 0.35         # Множник "страху" радіації
+        c_lethal: 252      # Максимальний ALARA-штраф
+      
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 4.0   
+        inflation_radius: 0.65
+      always_send_full_costmap: False # Важливо для оптимізації на слабом железе - отправляем только изменения, а не всю карту целиком
+
+map_saver:
+  ros__parameters:
+    save_map_timeout: 10.0 # Збільшили таймаут для збереження карти
+    free_thresh_default: 0.25
+    occupied_thresh_default: 0.65
+    map_subscribe_transient_local: True
+
+# --- ГЛОБАЛЬНИЙ ПЛАНУВАЛЬНИК (АЛГОРИТМ A*) ---
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 2.0  # Стабільна робота CPU
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 2.0
+    
+    GridBased:
+      plugin: "nav2_smac_planner::SmacPlanner2D" # <--- МЕНЯЕМ ПЛАГИН
+      tolerance: 0.5
+      allow_unknown: true
+      downsample_costmap: false
+      downsampling_factor: 1
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 2.0
+      
+      # === НАСТРОЙКИ 2D ПЛАНЕРА ===
+      use_final_approach_orientation: false  # Змушує генерувати маршрут із кінцевим доворотом
+      cost_penalty: 60.0                    # ALARA-поведінка: наскільки сильно уникати радіації/стін
+      retrospective_penalty: 0.0
+      
+smoother_server:
+  ros__parameters:
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: True
+
+behavior_server:
+  ros__parameters:
+    local_costmap_topic: local_costmap/costmap_raw
+    global_costmap_topic: global_costmap/costmap_raw
+    local_footprint_topic: local_costmap/published_footprint
+    global_footprint_topic: global_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "assisted_teleop", "wait"]
+    spin:
+      plugin: "nav2_behaviors::Spin"
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading"
+    wait:
+      plugin: "nav2_behaviors::Wait"
+    assisted_teleop:
+      plugin: "nav2_behaviors::AssistedTeleop"
+  
+    local_frame: odom
+    global_frame: map
+    robot_base_frame: base_link
+    transform_tolerance: 2.0 
+    simulate_ahead_time: 0.4
+    max_rotational_vel: 1.0
+    min_rotational_vel: 0.4
+    rotational_acc_lim: 3.2
+
+waypoint_follower:
+  ros__parameters:
+    loop_rate: 20
+    stop_on_failure: false
+    action_server_result_timeout: 900.0
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: True
+      waypoint_pause_duration: 200
+
+velocity_smoother:
+  ros__parameters:
+    smoothing_frequency: 10.0
+    scale_velocities: False
+    feedback: "OPEN_LOOP"
+    max_velocity: [1.5, 0.0, 2.5]
+    min_velocity: [-0.5, 0.0, -2.5]
+    max_accel: [2.5, 0.0, 3.2]
+    max_decel: [-2.5, 0.0, -3.2]
+    odom_topic: "odom"
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0
+
+collision_monitor:
+  ros__parameters:
+    base_frame_id: "base_footprint"
+    odom_frame_id: "odom"
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+    state_topic: "collision_monitor_state"
+    transform_tolerance: 1.0
+    source_timeout: 1.0
+    base_shift_correction: True
+    stop_pub_timeout: 2.0
+    polygons: ["FootprintApproach"]
+    FootprintApproach:
+      type: "polygon"
+      action_type: "approach"
+      footprint_topic: "/local_costmap/published_footprint"
+      time_before_collision: 1.5
+      simulation_time_step: 0.1
+      min_points: 10
+      visualize: False
+      enabled: True
+    observation_sources: ["scan"]
+    scan:
+      type: "scan"
+      topic: "scan"
+      min_height: 0.15
+      max_height: 2.0
+      enabled: True
+
+docking_server:
+  ros__parameters:
+    controller_frequency: 50.0
+    initial_perception_timeout: 5.0
+    wait_charge_timeout: 5.0
+    dock_approach_timeout: 30.0
+    undock_linear_tolerance: 0.05
+    undock_angular_tolerance: 0.1
+    max_retries: 3
+    base_frame: "base_link"
+    fixed_frame: "odom"
+    dock_backwards: false
+    dock_prestaging_tolerance: 0.5
+    dock_plugins: ['simple_charging_dock']
+    simple_charging_dock:
+      plugin: 'opennav_docking::SimpleChargingDock'
+      docking_threshold: 0.05
+      staging_x_offset: -0.7
+      use_external_detection_pose: true
+      use_battery_status: false 
+      use_stall_detection: false
+      external_detection_timeout: 1.0
+      filter_coef: 0.1
+    controller:
+      k_phi: 3.0
+      k_delta: 2.0
+      v_linear_min: 0.15
+      v_linear_max: 0.15
+      use_collision_detection: true
+      costmap_topic: "local_costmap/costmap_raw"
+      footprint_topic: "local_costmap/published_footprint"
+      transform_tolerance: 2.0
+      projection_time: 5.0
+      simulation_step: 0.1
+      dock_collision_threshold: 0.3

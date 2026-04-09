@@ -4,10 +4,10 @@ explore_node:
     costmap_topic: /global_costmap/costmap
     costmap_updates_topic: /global_costmap/costmap_updates
     visualize: true
-    planner_frequency: 0.33      # Как часто он пересчитывает цели (1 раз в 3 сек достаточно)
-    progress_timeout: 10.0       # (Было 30.0) Если за 10 сек не сдвинулся - забить на эту цель!
-    potential_scale: 5.0         # (Было 3.0) ВЕС ДИСТАНЦИИ. Чем выше, тем сильнее он хочет исследовать то, что БЛИЖЕ.
-    orientation_scale: 0.0       # Вес ориентации (оставляем 0)
-    gain_scale: 0.5              # (Было 1.0) ВЕС РАЗМЕРА. Уменьшаем, чтобы он не гнался за огромными пятнами на другом конце карты.
+    planner_frequency: 0.33      # How often does it recalculate targets (once every 3 seconds is enough)
+    progress_timeout: 10.0       # (It was 30.0) If it doesn’t move within 10 seconds, forget about this goal!
+    potential_scale: 2.0         # (Was 3.0) DISTANCE WEIGHT. The higher it is, the more he wants to explore what's CLOSER.
+    orientation_scale: 0.0       # Orientation weight (keeping it at 0)
+    gain_scale: 3.0              # (Was 1.0) SIZE WEIGHT. We reduce it so he doesn't chase huge patches at the other end of the map.
     transform_tolerance: 0.3
-    min_frontier_size: 0.75      # (Было 0.5) Игнорировать мелкие дырки и шумы лидара (размер в метрах)
+    min_frontier_size: 1      # (Was 0.5) Ignore small holes and lidar noise (size in meters)

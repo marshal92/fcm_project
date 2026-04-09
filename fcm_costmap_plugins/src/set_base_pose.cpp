@@ -17,12 +17,11 @@ public:
   BT::NodeStatus tick() override {
     geometry_msgs::msg::PoseStamped base;
     base.header.frame_id = "map";
-    // Координаты базы (можете потом поменять на нужные)
     base.pose.position.x = 0.0;
     base.pose.position.y = 0.0;
     base.pose.orientation.w = 1.0;
     
-    setOutput("base_pose", base); // Кладем в общую память дерева
+    setOutput("base_pose", base); 
     return BT::NodeStatus::SUCCESS;
   }
 };
