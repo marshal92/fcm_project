@@ -14,11 +14,8 @@ class SdfVisualizerNode(Node):
         qos_profile = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.publisher = self.create_publisher(MarkerArray, '/digital_twin/environment_3d', qos_profile)
         
-        # 1. Параметры файла
-        self.declare_parameter('world_file', 'shelter.sdf')
+        self.declare_parameter('world_file', '213.sdf')
         
-        # 2. ПАРАМЕТРЫ СМЕЩЕНИЯ (Для калибровки SLAM map и 3D модели)
-        # Если робот стартует на фундаменте (Z=0.5), то z_offset должен быть примерно -0.5
         self.declare_parameter('x_offset', 0.0)
         self.declare_parameter('y_offset', 0.0)
         self.declare_parameter('z_offset', 0.0)
@@ -57,19 +54,16 @@ class SdfVisualizerNode(Node):
             if model_name == 'ground_plane':
                 continue
 
-            # Читаем позу модели
             model_pose_tag = model.find('pose')
             m_pose = [float(v) for v in (model_pose_tag.text if model_pose_tag is not None else "0 0 0 0 0 0").split()]
             
             for link in model.findall('.//link'):
-                # Читаем позу линка
                 link_pose_tag = link.find('pose')
                 l_pose = [float(v) for v in (link_pose_tag.text if link_pose_tag is not None else "0 0 0 0 0 0").split()]
 
                 for visual in link.findall('.//visual'):
                     visual_name = visual.attrib.get('name', f'visual_{marker_id}')
                     
-                    # Читаем позу визуала
                     v_pose_tag = visual.find('pose')
                     v_pose = [float(v) for v in (v_pose_tag.text if v_pose_tag is not None else "0 0 0 0 0 0").split()]
 
@@ -77,7 +71,6 @@ class SdfVisualizerNode(Node):
                     marker.header.frame_id = "map"
                     marker.header.stamp = self.get_clock().now().to_msg()
                     
-                    # ИСПРАВЛЕНИЕ 1: Уникальный неймспейс для каждой детали (чтобы были отдельные чекбоксы)
                     marker.ns = f"{model_name}/{visual_name}"
                     marker.id = marker_id
                     marker.action = Marker.ADD
@@ -85,7 +78,6 @@ class SdfVisualizerNode(Node):
                     mesh = visual.find('.//mesh')
                     box = visual.find('.//box')
 
-                    # ИСПРАВЛЕНИЕ 2: Обработка как Mesh, так и Box (Фундамента)
                     if mesh is not None:
                         uri_tag = mesh.find('uri')
                         if uri_tag is None: continue
@@ -111,9 +103,8 @@ class SdfVisualizerNode(Node):
                         else:
                             marker.scale.x = 1.0; marker.scale.y = 1.0; marker.scale.z = 1.0
                     else:
-                        continue # Пропускаем, если не меш и не куб
+                        continue 
 
-                    # ИСПРАВЛЕНИЕ 3: Расчет финальной позиции с учетом ручных оффсетов
                     marker.pose.position.x = m_pose[0] + l_pose[0] + v_pose[0] + x_off
                     marker.pose.position.y = m_pose[1] + l_pose[1] + v_pose[1] + y_off
                     marker.pose.position.z = m_pose[2] + l_pose[2] + v_pose[2] + z_off

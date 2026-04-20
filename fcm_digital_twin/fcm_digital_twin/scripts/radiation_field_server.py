@@ -17,7 +17,9 @@ class RadiationFieldServer(Node):
             {'x': 1.5, 'y': 1.5,  'intensity': 50000.0, 'size': 0.7},
             {'x': 7.9,  'y': 16.5,  'intensity': 65000.0, 'size': 1.0},
             {'x': 11.5,  'y': 14.5,  'intensity': 45000.0, 'size': 0.9},
-            {'x': 5.0,  'y': 9.3,  'intensity': 50000.0, 'size': 0.75}
+            {'x': 5.0,  'y': 9.3,  'intensity': 50000.0, 'size': 0.75},
+            {'x': 7.5,  'y': 0.3,  'intensity': 45000.0, 'size': 0.5},
+            {'x': 2.2,  'y': -2.6,  'intensity': 60000.0, 'size': 0.8}
         ]
 
         self.soft_clouds = [

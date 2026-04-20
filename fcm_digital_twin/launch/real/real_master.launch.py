@@ -9,7 +9,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     # Variable for the argument to load the 3D model of the room (Shelter) as a background in Foxglove
     world_file_arg = DeclareLaunchArgument(
-        'world_file', default_value='shelter.sdf', description='Name of SDF world file'
+        'world_file', default_value='213.sdf', description='Name of SDF world file'
     )
 
     # 1. Bridge FOXGLOVE 
