@@ -39,7 +39,9 @@ def generate_launch_description():
     mission_manager_node = Node(
         package='fcm_digital_twin',
         executable='mission_manager',
-        parameters=[{'is_simulation': False}]
+        parameters=[{'is_simulation': False}],
+        respawn=True,                
+        respawn_delay=2.0
     )
     
     # 5. Mission Control (Onboard Controller)
@@ -48,7 +50,9 @@ def generate_launch_description():
         executable='mission_control',
         name='mission_control',
         output='screen',
-        parameters=[{'use_sim_time': False}]
+        parameters=[{'use_sim_time': False}],
+        respawn=True,                
+        respawn_delay=2.0
     )
 
     return LaunchDescription([

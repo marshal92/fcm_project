@@ -117,87 +117,95 @@ def main(args=None):
     monitor.get_logger().info('Mission Control started.')
 
     while rclpy.ok():
-        rclpy.spin_once(monitor, timeout_sec=0.5)
-        
-        # --- 1. Tactical command processing ---
-        if monitor.pending_task is not None and monitor.status == 'NORMAL' and monitor.is_connected:
-            task = monitor.pending_task
-            monitor.pending_task = None
-                           
-            #If received CANCEL command — simply stop and clear memory
-            if task['type'] == 'cancel':
-                navigator.cancelTask()
-                monitor.last_rviz_goal = None
-                monitor.get_logger().info('🛑 Cancelled navigation by user.')
-                continue
-
-            # Interruption Before any NEW task, the old one is clearly obliterated,
-            if not navigator.isTaskComplete():
-                navigator.cancelTask()
-                time.sleep(0.1)
+        try:
+            rclpy.spin_once(monitor, timeout_sec=0.5)
             
-            #Performing a new task
-            if task['type'] == 'go_to':
-                task['pose'].header.stamp = navigator.get_clock().now().to_msg()
-                monitor.last_rviz_goal = task['pose']
-                navigator.goToPose(task['pose'], behavior_tree=task['bt'])
-            
-            elif task['type'] == 'waypoints':
-                for p in task['poses']:
-                    p.header.stamp = navigator.get_clock().now().to_msg()
-                # We use goThroughPoses for smooth movement without stopping
-                navigator.goThroughPoses(task['poses'])
-                monitor.last_rviz_goal = task['poses'][-1]        
+            # --- 1. Tactical command processing ---
+            if monitor.pending_task is not None and monitor.status == 'NORMAL' and monitor.is_connected:
+                task = monitor.pending_task
+                monitor.pending_task = None
                                
-        # --- 2. MONITORING CONNECTION ---
-        current_time = monitor.get_clock().now().nanoseconds / 1e9
-        elapsed = current_time - monitor.last_heartbeat
-        
-        # STAGE 2: CRITICAL BREAK (> 10 seconds)
-        if elapsed > evac_timeout and monitor.status != 'EVACUATING':
-            if len(monitor.deployed_tools) > 0:
-                continue 
+                #If received CANCEL command — simply stop and clear memory
+                if task['type'] == 'cancel':
+                    navigator.cancelTask()
+                    monitor.last_rviz_goal = None
+                    monitor.get_logger().info('🛑 Cancelled navigation by user.')
+                    continue
 
-            monitor.is_connected = False
-            monitor.status = 'EVACUATING'
-            monitor.get_logger().warn('\033[1;31m[Connection] Critical Connection Loss! Evacuation to base...\033[0m')
+                # Interruption Before any NEW task, the old one is clearly obliterated,
+                if not navigator.isTaskComplete():
+                    navigator.cancelTask()
+                    time.sleep(0.1)
+                
+                #Performing a new task
+                if task['type'] == 'go_to':
+                    task['pose'].header.stamp = navigator.get_clock().now().to_msg()
+                    monitor.last_rviz_goal = task['pose']
+                    navigator.goToPose(task['pose'], behavior_tree=task['bt'])
+                
+                elif task['type'] == 'waypoints':
+                    for p in task['poses']:
+                        p.header.stamp = navigator.get_clock().now().to_msg()
+                    # We use goThroughPoses for smooth movement without stopping
+                    navigator.goThroughPoses(task['poses'])
+                    monitor.last_rviz_goal = task['poses'][-1]        
+                                   
+            # --- 2. MONITORING CONNECTION ---
+            current_time = monitor.get_clock().now().nanoseconds / 1e9
+            elapsed = current_time - monitor.last_heartbeat
             
-            navigator.cancelTask()
-            time.sleep(0.5)
-            
-            home_pose = PoseStamped()
-            home_pose.header.frame_id = 'map'
-            home_pose.pose.position.x = 0.0 
-            home_pose.pose.position.y = 0.0
-            home_pose.pose.orientation.w = 1.0
-            home_pose.header.stamp = navigator.get_clock().now().to_msg()
-            navigator.goToPose(home_pose, behavior_tree=bt_survival)
+            # STAGE 2: CRITICAL BREAK (> 10 seconds)
+            if elapsed > evac_timeout and monitor.status != 'EVACUATING':
+                if len(monitor.deployed_tools) > 0:
+                    continue 
 
-        # STAGE 1: SIGNAL LOSS AND WAITING (2 to 10 seconds)
-        elif elapsed > warning_timeout and elapsed <= evac_timeout and monitor.status == 'NORMAL':
-            monitor.status = 'WARNING'
-            monitor.get_logger().warn('\033[1;33m[Connection] SIGNAL LOSS! Emergency stop. Waiting (10 sec)...\033[0m')
-            navigator.cancelTask() #instantly apply brakes!
-
-        # SIGNAL RESTORED (< 2 seconds)
-        elif elapsed <= warning_timeout and monitor.status != 'NORMAL':
-            monitor.is_connected = True
-            
-            if monitor.status == 'EVACUATING':
-                monitor.get_logger().info('\033[1;34m[Connection] SIGNAL RESTORED! Cancelling evacuation.\033[0m')
+                monitor.is_connected = False
+                monitor.status = 'EVACUATING'
+                monitor.get_logger().warn('\033[1;31m[Connection] Critical Connection Loss! Evacuation to base...\033[0m')
+                
                 navigator.cancelTask()
                 time.sleep(0.5)
-            elif monitor.status == 'WARNING':
-                monitor.get_logger().info('\033[1;32m[Connection] SIGNAL RESTORED! Removing blockage.\033[0m')
-            
-            monitor.status = 'NORMAL'
-            
-            if monitor.last_rviz_goal:
-                monitor.get_logger().info('Recovering route from memory...')
-                monitor.last_rviz_goal.header.stamp = navigator.get_clock().now().to_msg()
-                navigator.goToPose(monitor.last_rviz_goal, behavior_tree='') 
-            else:
-                monitor.get_logger().info('Waiting for new instructions.')
+                
+                home_pose = PoseStamped()
+                home_pose.header.frame_id = 'map'
+                home_pose.pose.position.x = 0.0 
+                home_pose.pose.position.y = 0.0
+                home_pose.pose.orientation.w = 1.0
+                home_pose.header.stamp = navigator.get_clock().now().to_msg()
+                navigator.goToPose(home_pose, behavior_tree=bt_survival)
+
+            # STAGE 1: SIGNAL LOSS AND WAITING (2 to 10 seconds)
+            elif elapsed > warning_timeout and elapsed <= evac_timeout and monitor.status == 'NORMAL':
+                monitor.status = 'WARNING'
+                monitor.get_logger().warn('\033[1;33m[Connection] SIGNAL LOSS! Emergency stop. Waiting (10 sec)...\033[0m')
+                navigator.cancelTask() #instantly apply brakes!
+
+            # SIGNAL RESTORED (< 2 seconds)
+            elif elapsed <= warning_timeout and monitor.status != 'NORMAL':
+                monitor.is_connected = True
+                
+                if monitor.status == 'EVACUATING':
+                    monitor.get_logger().info('\033[1;34m[Connection] SIGNAL RESTORED! Cancelling evacuation.\033[0m')
+                    navigator.cancelTask()
+                    time.sleep(0.5)
+                elif monitor.status == 'WARNING':
+                    monitor.get_logger().info('\033[1;32m[Connection] SIGNAL RESTORED! Removing blockage.\033[0m')
+                
+                monitor.status = 'NORMAL'
+                
+                if monitor.last_rviz_goal:
+                    monitor.get_logger().info('Recovering route from memory...')
+                    monitor.last_rviz_goal.header.stamp = navigator.get_clock().now().to_msg()
+                    navigator.goToPose(monitor.last_rviz_goal, behavior_tree='') 
+                else:
+                    monitor.get_logger().info('Waiting for new instructions.')
+
+        except RuntimeError as e:
+            monitor.get_logger().error(f'\033[1;41m[DDS ERROR] Network/ROS failure: {e}. Node surviving...\033[0m')
+            time.sleep(1.0) 
+        except Exception as e:
+            monitor.get_logger().error(f'\033[1;41m[FATAL ERROR] Unexpected exception: {e}. Node surviving...\033[0m')
+            time.sleep(1.0)
 
     monitor.destroy_node()
     rclpy.shutdown()
