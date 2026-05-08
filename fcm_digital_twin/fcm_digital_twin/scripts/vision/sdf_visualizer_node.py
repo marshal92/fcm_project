@@ -115,12 +115,24 @@ class SdfVisualizerNode(Node):
                     marker.pose.orientation.z = q[2]
                     marker.pose.orientation.w = q[3]
 
-                    # Цвет
-                    marker.color.r = 0.50
-                    marker.color.g = 0.50
-                    marker.color.b = 0.50
-                    marker.color.a = 1.0
-
+                    # Color
+                    material = visual.find('.//material')
+                    if material is not None:
+                        color_tag = material.find('diffuse')
+                        if color_tag is None:
+                            color_tag = material.find('ambient')
+                        
+                        if color_tag is not None and color_tag.text:
+                            rgba = [float(v) for v in color_tag.text.split()]
+                            marker.color.r = rgba[0]
+                            marker.color.g = rgba[1]
+                            marker.color.b = rgba[2]
+                            marker.color.a = rgba[3] if len(rgba) > 3 else 1.0
+                        else:
+                            marker.color.r = 0.5; marker.color.g = 0.5; marker.color.b = 0.5; marker.color.a = 1.0
+                    else:
+                        marker.color.r = 0.5; marker.color.g = 0.5; marker.color.b = 0.5; marker.color.a = 1.0
+                    
                     marker_array.markers.append(marker)
                     marker_id += 1
 

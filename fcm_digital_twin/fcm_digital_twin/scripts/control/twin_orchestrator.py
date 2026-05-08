@@ -7,35 +7,34 @@ class TwinOrchestrator(Node):
     def __init__(self):
         super().__init__('twin_orchestrator')
         
-        # Subscribe to commands from buttons with Foxglove
-        # Foxglove will publish strings here
+        # Subscribe to commands 
         self.sub = self.create_subscription(String, '/operator_command', self.command_cb, 10)
         
         # Create a publisher for direct control of the Shadow (instead of subprocess)
         self.shadow_pub = self.create_publisher(String, '/shadow_command', 10)
         
         self.get_logger().info("Server node Twin Orchestrator started!")
-        self.get_logger().info("Waiting for buttons from Foxglove in topic /operator_command...")
+        self.get_logger().info("Waiting for buttons in topic /operator_command...")
 
     def command_cb(self, msg):
         cmd = msg.data.lower()
         
         if cmd == 'execute':
-            self.get_logger().info("Received EXECUTE command from Foxglove. Starting Shadow...")
+            self.get_logger().info("Received EXECUTE command. Starting Shadow...")
             # Natively publish to the /shadow_command topic
             shadow_msg = String()
             shadow_msg.data = 'execute'
             self.shadow_pub.publish(shadow_msg)
             
         elif cmd == 'clear':
-            self.get_logger().warn("🛑 Received CLEAR command from Foxglove!")
+            self.get_logger().warn("🛑 Received CLEAR command!")
             # Natively publish to the /shadow_command topic
             shadow_msg = String()
             shadow_msg.data = 'clear'
             self.shadow_pub.publish(shadow_msg)
             
         else:
-            self.get_logger().error(f"Unknown command from Foxglove: {cmd}")
+            self.get_logger().error(f"Unknown command: {cmd}")
 
 def main(args=None):
     rclpy.init(args=args)

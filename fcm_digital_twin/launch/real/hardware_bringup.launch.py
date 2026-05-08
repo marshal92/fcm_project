@@ -28,12 +28,12 @@ def generate_launch_description():
     )
 
     # 3. Bridge FOXGLOVE
-    foxglove_node = Node(
-        package='foxglove_bridge',
-        executable='foxglove_bridge',
-        parameters=[{'port': 8765, 'send_buffer_limit': 100000000, 'use_sim_time': False}],
-        output='screen'
-    )
+    #foxglove_node = Node(
+    #    package='foxglove_bridge',
+    #    executable='foxglove_bridge',
+    #    parameters=[{'port': 8765, 'send_buffer_limit': 100000000, 'use_sim_time': False}],
+    #    output='screen'
+    #)
 
     # 4. Mission Management (Onboard Manager)
     mission_manager_node = Node(
@@ -59,7 +59,7 @@ def generate_launch_description():
         linorobot_bringup,
         sllidar_launch,
         camera_launch,
-        foxglove_node,
+        #foxglove_node,
         mission_manager_node,
         mission_control_node
     ])

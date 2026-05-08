@@ -50,7 +50,7 @@ def generate_launch_description():
         use_sim_time_arg,
         slam_launch,
 
-        TimerAction(period=2.0, actions=[nav_launch]),
+        TimerAction(period=6.0, actions=[nav_launch]),
         radiation_server_node,
         alara_reflex_node
     ])
