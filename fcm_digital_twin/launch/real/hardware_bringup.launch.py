@@ -1,6 +1,6 @@
 import os
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
@@ -22,11 +22,12 @@ def generate_launch_description():
     )
 
     # 2. Camera
-    camera_launch = ExecuteProcess(
-        cmd=['ros2', 'launch', os.path.expanduser('~/ros2_ws/run_camera.launch.py')],
-        output='screen'
+    camera_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.expanduser('~/ros2_ws/run_camera.launch.py')
+        )
     )
-
+    
     # 3. Bridge FOXGLOVE
     #foxglove_node = Node(
     #    package='foxglove_bridge',
@@ -45,21 +46,21 @@ def generate_launch_description():
     )
     
     # 5. Mission Control (Onboard Controller)
-    mission_control_node = Node(
-        package='fcm_digital_twin', 
-        executable='mission_control',
-        name='mission_control',
-        output='screen',
-        parameters=[{'use_sim_time': False}],
-        respawn=True,                
-        respawn_delay=2.0
-    )
+    #mission_control_node = Node(
+    #    package='fcm_digital_twin', 
+    #    executable='mission_control',
+    #    name='mission_control',
+    #    output='screen',
+    #    parameters=[{'use_sim_time': False}],
+    #    respawn=True,                
+    #    respawn_delay=2.0
+    #)
 
     return LaunchDescription([
         linorobot_bringup,
         sllidar_launch,
         camera_launch,
         #foxglove_node,
-        mission_manager_node,
-        mission_control_node
+        TimerAction(period=4.0, actions=[mission_manager_node]),
+        #TimerAction(period=5.0, actions=[mission_control_node]),
     ])

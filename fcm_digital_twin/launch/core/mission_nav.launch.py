@@ -63,5 +63,5 @@ def generate_launch_description():
         radiation_server_node,
         alara_reflex_node,
         
-        TimerAction(period=3.0, actions=[nav_lifelong_launch])
+        TimerAction(period=6.0, actions=[nav_lifelong_launch])
     ])
