@@ -50,7 +50,6 @@ setup(
         'console_scripts': [
             'radiation_field_server = fcm_digital_twin.scripts.radiation_field_server:main',
             'alara_speed_reflex = fcm_digital_twin.scripts.alara_speed_reflex:main',
-            'telemetry_logger = fcm_digital_twin.scripts.dose_logger:main',
             'shadow_teleop_sim = fcm_digital_twin.scripts.control.shadow_teleop_sim:main',
             'shadow_teleop_real = fcm_digital_twin.scripts.control.shadow_teleop_real:main',
             'resource_logger = fcm_digital_twin.scripts.control.resource_logger:main',
@@ -60,6 +59,7 @@ setup(
             'stabilized_frame_publisher = fcm_digital_twin.scripts.stabilized_frame_publisher:main',       
             'sdf_visualizer_node = fcm_digital_twin.scripts.vision.sdf_visualizer_node:main',
             'dose_logger = fcm_digital_twin.scripts.dose_logger:main',
+            'shadow_logger = fcm_digital_twin.scripts.shadow_logger:main',
             'latency_simulator = fcm_digital_twin.scripts.latency_simulator:main',
             'twin_orchestrator = fcm_digital_twin.scripts.control.twin_orchestrator:main',
             'mission_control = fcm_digital_twin.scripts.control.mission_control:main'

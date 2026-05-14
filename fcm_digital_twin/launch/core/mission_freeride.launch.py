@@ -39,11 +39,11 @@ def generate_launch_description():
     )
 
     alara_reflex_node = Node(
-        package='fcm_digital_twin',
-        executable='alara_speed_reflex',
+        package='fcm_costmap_plugins',
+        executable='alara_speed_reflex_node',
         name='alara_speed_reflex',
-        output='screen',
-        parameters=[{'use_sim_time': use_sim_time}]
+        output='screen'#,
+        #parameters=[{'use_sim_time': use_sim_time}]
     )
 
     return LaunchDescription([

@@ -14,7 +14,7 @@ public:
   AlaraSpeedReflex()
   : Node("alara_speed_reflex_cpp"),
     rad_threshold_(30.0),
-    normal_speed_pct_(35.0),
+    normal_speed_pct_(100.0),
     boost_speed_pct_(100.0),
     is_boosted_(false),
     init_done_(false)

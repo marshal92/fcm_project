@@ -46,15 +46,15 @@ def generate_launch_description():
     )
     
     # 5. Mission Control (Onboard Controller)
-    #mission_control_node = Node(
-    #    package='fcm_digital_twin', 
-    #    executable='mission_control',
-    #    name='mission_control',
-    #    output='screen',
-    #    parameters=[{'use_sim_time': False}],
-    #    respawn=True,                
-    #    respawn_delay=2.0
-    #)
+    mission_control_node = Node(
+        package='fcm_digital_twin', 
+        executable='mission_control',
+        name='mission_control',
+        output='screen',
+        parameters=[{'use_sim_time': False}],
+        respawn=True,                
+        respawn_delay=2.0
+    )
 
     return LaunchDescription([
         linorobot_bringup,
@@ -62,5 +62,5 @@ def generate_launch_description():
         camera_launch,
         #foxglove_node,
         TimerAction(period=4.0, actions=[mission_manager_node]),
-        #TimerAction(period=5.0, actions=[mission_control_node]),
+        TimerAction(period=5.0, actions=[mission_control_node]),
     ])

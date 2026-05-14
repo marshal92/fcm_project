@@ -7,6 +7,8 @@ import tf2_ros
 import time
 import csv
 import math
+import os
+from datetime import datetime
 
 class TelemetryLogger(Node):
     def __init__(self):
@@ -24,43 +26,58 @@ class TelemetryLogger(Node):
         self.last_y = None
         self.start_time = time.time()
 
-        self.csv_file = open('mission_telemetry.csv', mode='w', newline='')
+        # --- ГЕНЕРАЦИЯ УНИКАЛЬНОГО ИМЕНИ ФАЙЛА ---
+        # 1. Создаем папку для логов в домашней директории пользователя
+        log_dir = os.path.expanduser('~/fcm_mission_logs')
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # 2. Генерируем таймстемп (ГодМесяцДень_ЧасМинутСекунды)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f'mission_{timestamp}.csv'
+        
+        # 3. Формируем полный путь
+        self.filepath = os.path.join(log_dir, filename)
+
+        self.csv_file = open(self.filepath, mode='w', newline='')
         self.csv_writer = csv.writer(self.csv_file)
         self.csv_writer.writerow(['Time_sec', 'X_m', 'Y_m', 'Speed_mps', 'Dose_Rate_uSv_h', 'Accum_Dose_uSv', 'Distance_m'])
+        
+        self.get_logger().info(f"✅ Логгер запущен! Файл сохраняется в: {self.filepath}")
+        # ----------------------------------------
 
         map_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
-        self.map_sub = self.create_subscription(OccupancyGrid, '/radiation_map', self.map_callback, map_qos)
-        self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
+        self.map_sub = self.create_subscription(OccupancyGrid, '/radiation_map', self.map_cb, map_qos)
+        self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_cb, 10)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        self.timer = self.create_timer(1.0 / self.update_rate_hz, self.log_telemetry)
-        self.print_timer = self.create_timer(2.0, self.print_stats)
+        self.timer = self.create_timer(1.0 / self.update_rate_hz, self.timer_cb)
+        self.print_timer = self.create_timer(5.0, self.print_stats)
 
-        self.get_logger().info("Telemetry Logger started! Writing to mission_telemetry.csv...")
-
-    def map_callback(self, msg):
+    def map_cb(self, msg):
         self.latest_map = msg
 
-    def odom_callback(self, msg):
+    def odom_cb(self, msg):
         self.current_speed = msg.twist.twist.linear.x
 
-    def log_telemetry(self):
-        if self.latest_map is None: return
-
+    def timer_cb(self):
         try:
-            trans = self.tf_buffer.lookup_transform('map', 'base_footprint', rclpy.time.Time())
+            trans = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
             rx = trans.transform.translation.x
             ry = trans.transform.translation.y
-        except Exception: return
+        except Exception:
+            return
 
         if self.last_x is not None and self.last_y is not None:
-            dx = rx - self.last_x
-            dy = ry - self.last_y
-            self.total_distance += math.hypot(dx, dy)
+            dist = math.hypot(rx - self.last_x, ry - self.last_y)
+            self.total_distance += dist
+
         self.last_x = rx
         self.last_y = ry
+
+        if self.latest_map is None:
+            return
 
         res = self.latest_map.info.resolution
         ox = self.latest_map.info.origin.position.x
@@ -92,7 +109,7 @@ class TelemetryLogger(Node):
         elapsed_time = time.time() - self.start_time
         self.get_logger().info(
             f"T: {elapsed_time:.1f}s | Dist: {self.total_distance:.2f}m | "
-            f"Speed: {self.current_speed:.2f}m/s | Total Dose: {self.accumulated_dose:.2f} µSv"
+            f"Speed: {self.current_speed:.2f}m/s | Dose: {self.accumulated_dose:.1f}µSv"
         )
 
 def main(args=None):
@@ -101,7 +118,7 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        pass
+        node.get_logger().info("Логгер остановлен оператором.")
     finally:
         node.csv_file.close()
         node.destroy_node()

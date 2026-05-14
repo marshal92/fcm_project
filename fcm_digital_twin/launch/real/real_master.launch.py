@@ -13,12 +13,12 @@ def generate_launch_description():
     )
 
     # 1. Bridge FOXGLOVE 
-    foxglove_node = Node(
-        package='foxglove_bridge',
-        executable='foxglove_bridge',
-        parameters=[{'port': 8765, 'send_buffer_limit': 100000000, 'use_sim_time': False}],
-        output='screen'
-    )
+    #foxglove_node = Node(
+    #    package='foxglove_bridge',
+    #    executable='foxglove_bridge',
+    #    parameters=[{'port': 8765, 'send_buffer_limit': 100000000, 'use_sim_time': False}],
+    #    output='screen'
+    #)
 
     # 2. Network Orchestrator
     twin_orchestrator_node = Node(
@@ -64,7 +64,7 @@ def generate_launch_description():
     return LaunchDescription([
         world_file_arg,
         
-        foxglove_node,
+        #foxglove_node,
         twin_orchestrator_node,
         shadow_teleop_node,
         sdf_visualizer_node,
